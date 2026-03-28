@@ -1,0 +1,136 @@
+axiomguard: "0.3"
+domain: medical_triage_safety
+
+entities:
+  - name: patient
+    aliases: ["pt", "client", "individual", "person"]
+  - name: prescription
+    aliases: ["rx", "medication", "drug", "treatment"]
+
+rules:
+  # ================================================================
+  # DOSAGE LIMITS (Mathematical Constraints)
+  # ================================================================
+
+  - name: max_daily_paracetamol
+    type: range
+    entity: patient
+    relation: paracetamol_mg_daily
+    value_type: int
+    max: 4000
+    severity: error
+    message: "CRITICAL: Paracetamol must NOT exceed 4,000 mg/day. Hepatotoxicity risk — potentially fatal liver damage."
+
+  - name: max_daily_ibuprofen
+    type: range
+    entity: patient
+    relation: ibuprofen_mg_daily
+    value_type: int
+    max: 1200
+    severity: error
+    message: "Ibuprofen must not exceed 1,200 mg/day (OTC limit)."
+
+  # ================================================================
+  # ALLERGY CONTRAINDICATIONS (Dependency → Exclusion)
+  # ================================================================
+
+  - name: nsaid_allergy_blocks_ibuprofen
+    type: dependency
+    when:
+      entity: patient
+      relation: allergy
+      value: NSAID
+    then:
+      require:
+        relation: ibuprofen_status
+        value: contraindicated
+    severity: error
+    message: "NSAID allergy: Ibuprofen is CONTRAINDICATED. Risk of anaphylaxis."
+
+  - name: nsaid_allergy_blocks_aspirin
+    type: dependency
+    when:
+      entity: patient
+      relation: allergy
+      value: NSAID
+    then:
+      require:
+        relation: aspirin_status
+        value: contraindicated
+    severity: error
+    message: "NSAID allergy: Aspirin is CONTRAINDICATED. Cross-reactivity risk."
+
+  - name: nsaid_allergy_blocks_naproxen
+    type: dependency
+    when:
+      entity: patient
+      relation: allergy
+      value: NSAID
+    then:
+      require:
+        relation: naproxen_status
+        value: contraindicated
+    severity: error
+    message: "NSAID allergy: Naproxen is CONTRAINDICATED. Cross-reactivity risk."
+
+  # ================================================================
+  # PREGNANCY CONTRAINDICATIONS (Conditional Block)
+  # ================================================================
+
+  - name: pregnancy_blocks_warfarin
+    type: dependency
+    when:
+      entity: patient
+      relation: condition
+      value: pregnant
+    then:
+      require:
+        relation: warfarin_status
+        value: contraindicated
+    severity: error
+    message: "PREGNANCY: Warfarin is CONTRAINDICATED. Teratogenic — causes birth defects (FDA Category X)."
+
+  - name: pregnancy_blocks_lisinopril
+    type: dependency
+    when:
+      entity: patient
+      relation: condition
+      value: pregnant
+    then:
+      require:
+        relation: lisinopril_status
+        value: contraindicated
+    severity: error
+    message: "PREGNANCY: Lisinopril is CONTRAINDICATED. ACE inhibitors cause fetal renal damage."
+
+  - name: pregnancy_blocks_ibuprofen_3rd_trimester
+    type: dependency
+    when:
+      entity: patient
+      relation: condition
+      value: pregnant
+    then:
+      require:
+        relation: ibuprofen_status
+        value: contraindicated
+    severity: error
+    message: "PREGNANCY: Ibuprofen is CONTRAINDICATED in 2nd/3rd trimester. Risk of premature ductus arteriosus closure."
+
+  # ================================================================
+  # DRUG INTERACTIONS
+  # ================================================================
+
+  - name: warfarin_aspirin_bleeding
+    type: exclusion
+    entity: patient
+    relation: medication
+    values: [Warfarin, Aspirin]
+    severity: error
+    message: "Warfarin + Aspirin: SEVERE bleeding risk. Do not co-prescribe."
+
+  - name: one_primary_diagnosis
+    type: unique
+    entity: patient
+    relation: primary_diagnosis
+    severity: warning
+    message: "Patient should have one primary diagnosis for triage priority."
