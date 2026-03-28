@@ -1,3 +1,6 @@
+# AxiomGuard — Confidential workspace (tracking logs, prompts, internal state)
+.claude/
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[codz]
