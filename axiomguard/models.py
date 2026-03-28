@@ -60,12 +60,14 @@ class VerificationResult:
 
     Attributes:
         is_hallucinating: True if a contradiction was detected.
-        reason: Human-readable explanation.
+        reason: Human-readable explanation (uses YAML custom message when available).
         confidence: "proven" when Z3 returns UNSAT (mathematical proof),
                     "uncertain" when extraction had issues.
         extraction_warnings: Transparency log of anything unusual
                              during the extraction/resolution stages.
         contradicted_claims: Indices of claims in the unsat core (if available).
+        violated_rules: List of YAML rule metadata dicts that were violated.
+                        Each dict has keys: name, type, severity, message.
     """
 
     is_hallucinating: bool
@@ -73,3 +75,4 @@ class VerificationResult:
     confidence: Literal["proven", "uncertain"] = "proven"
     extraction_warnings: list[str] = field(default_factory=list)
     contradicted_claims: list[int] = field(default_factory=list)
+    violated_rules: list[dict] = field(default_factory=list)

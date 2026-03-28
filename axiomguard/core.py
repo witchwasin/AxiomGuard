@@ -22,6 +22,7 @@ from axiomguard.resolver import EntityResolver
 # =====================================================================
 
 _entity_resolver = EntityResolver()
+_knowledge_base = None  # set via set_knowledge_base() or load_rules()
 
 
 # =====================================================================
@@ -121,6 +122,52 @@ def set_entity_resolver(resolver: EntityResolver) -> None:
     """
     global _entity_resolver
     _entity_resolver = resolver
+
+
+def load_rules(path: str) -> None:
+    """Load an .axiom.yml file into the global KnowledgeBase (v0.3.0).
+
+    Creates a new KnowledgeBase if one doesn't exist. Entity aliases
+    from the YAML are automatically merged into the global EntityResolver.
+
+    Example::
+
+        import axiomguard
+        axiomguard.load_rules("rules/medical.axiom.yml")
+        result = axiomguard.verify_with_kb(
+            response="Patient takes Aspirin",
+            axioms=["Patient takes Warfarin"],
+        )
+    """
+    from axiomguard.knowledge_base import KnowledgeBase
+
+    global _knowledge_base, _entity_resolver
+    if _knowledge_base is None:
+        _knowledge_base = KnowledgeBase(resolver=_entity_resolver)
+    _knowledge_base.load(path)
+    # Sync resolver (KB may have added aliases from YAML entities)
+    _entity_resolver = _knowledge_base.resolver
+
+
+def set_knowledge_base(kb) -> None:
+    """Set the global KnowledgeBase directly (v0.3.0).
+
+    Example::
+
+        from axiomguard.knowledge_base import KnowledgeBase
+        kb = KnowledgeBase()
+        kb.load_string(yaml_content)
+        set_knowledge_base(kb)
+    """
+    global _knowledge_base, _entity_resolver
+    _knowledge_base = kb
+    if kb is not None:
+        _entity_resolver = kb.resolver
+
+
+def get_knowledge_base():
+    """Get the current global KnowledgeBase (or None)."""
+    return _knowledge_base
 
 
 # =====================================================================
@@ -241,3 +288,61 @@ def verify(response: str, axioms: list[str]) -> VerificationResult:
         extraction_warnings=all_warnings,
         contradicted_claims=contradicted,
     )
+
+
+def verify_with_kb(
+    response: str,
+    axioms: list[str] | None = None,
+    kb=None,
+) -> VerificationResult:
+    """Verify an LLM response using the KnowledgeBase rule engine (v0.3.0).
+
+    Uses YAML rules for constraint checking. When a contradiction is found,
+    the result includes violated_rules with custom messages from the YAML.
+
+    Pipeline:
+      1. Extract claims from response and axioms (LLM layer).
+      2. Resolve entities (EntityResolver — from YAML aliases + defaults).
+      3. KnowledgeBase.verify() — YAML rules + Z3 (Math layer).
+      4. Return result with violated_rules and custom messages.
+
+    Args:
+        response: The LLM-generated text to verify.
+        axioms: Optional ground-truth statements (natural language).
+        kb: Optional KnowledgeBase override. Uses global KB if None.
+
+    Returns:
+        VerificationResult with violated_rules, custom messages, and proof trace.
+
+    Raises:
+        RuntimeError: If no KnowledgeBase is loaded and none is provided.
+    """
+    active_kb = kb or _knowledge_base
+    if active_kb is None:
+        raise RuntimeError(
+            "No KnowledgeBase loaded. Call load_rules() or pass a KnowledgeBase."
+        )
+
+    all_warnings: list[str] = []
+
+    # Step 1: Extract claims from response
+    response_claims = _extract(response)
+    response_claims, warnings = active_kb.resolver.resolve_claims(response_claims)
+    all_warnings.extend(warnings)
+
+    # Step 2: Extract claims from axioms (optional)
+    axiom_claims: list[Claim] = []
+    if axioms:
+        for axiom in axioms:
+            claims = _extract(axiom)
+            resolved, warnings = active_kb.resolver.resolve_claims(claims)
+            axiom_claims.extend(resolved)
+            all_warnings.extend(warnings)
+
+    # Step 3: KB verification (YAML rules + Z3)
+    result = active_kb.verify(response_claims, axiom_claims)
+
+    # Merge extraction warnings
+    result.extraction_warnings = all_warnings + result.extraction_warnings
+
+    return result

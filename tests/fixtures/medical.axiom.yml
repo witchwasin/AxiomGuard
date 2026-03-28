@@ -1,0 +1,68 @@
+axiomguard: "0.3"
+domain: healthcare
+
+entities:
+  - name: patient
+    aliases: ["ผู้ป่วย", "client", "pt"]
+    description: "A person receiving medical care"
+  - name: drug
+    aliases: ["medication", "ยา"]
+
+rules:
+  # --- Uniqueness ---
+  - name: One blood type per patient
+    type: unique
+    entity: patient
+    relation: blood_type
+    severity: error
+    message: "Patient cannot have two blood types."
+    examples:
+      - input: "Patient blood_type is A"
+        axioms: ["Patient blood_type is A"]
+        expect: pass
+        description: "Same blood type — no contradiction"
+      - input: "Patient blood_type is B"
+        axioms: ["Patient blood_type is A"]
+        expect: fail
+        description: "Two different blood types — contradiction"
+
+  # --- Exclusion ---
+  - name: Warfarin-Aspirin interaction
+    type: exclusion
+    entity: patient
+    relation: takes
+    values: [Warfarin, Aspirin]
+    severity: error
+    message: "CRITICAL: Warfarin + Aspirin = bleeding risk."
+    examples:
+      - input: "Patient takes Aspirin"
+        axioms: ["Patient takes Warfarin"]
+        expect: fail
+        description: "Drug interaction — both blood thinners"
+      - input: "Patient takes Paracetamol"
+        axioms: ["Patient takes Warfarin"]
+        expect: pass
+        description: "No interaction between these drugs"
+
+  # --- Dependency ---
+  - name: Chemotherapy requires blood test
+    type: dependency
+    when:
+      entity: patient
+      relation: treatment
+      value: chemotherapy
+    then:
+      require:
+        relation: blood_test
+        value: completed
+    severity: error
+    message: "Cannot start chemo without blood test results."
+    examples:
+      - input: "Patient treatment is chemotherapy"
+        axioms: ["Patient blood_test is completed"]
+        expect: pass
+        description: "Blood test done — chemo OK"
+      - input: "Patient treatment is chemotherapy"
+        axioms: ["Patient blood_test is pending"]
+        expect: fail
+        description: "Blood test not done — chemo blocked"
