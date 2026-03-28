@@ -10,13 +10,14 @@
 <h1 align="center">AxiomGuard</h1>
 
 <p align="center">
-  <strong>Mathematical Logic Guardrails for LLMs</strong><br/>
-  Deterministic hallucination detection & self-correction for RAG pipelines.<br/>
-  Powered by Z3 Theorem Prover. Provider-agnostic. Zero false positives.
+  <strong>AxiomGuard is not smart. It is correct.</strong><br/><br/>
+  Deterministic verification engine for LLM outputs.<br/>
+  Powered by Z3 Theorem Prover. Zero false positives. Fully auditable.<br/>
+  You write the rules. We enforce them with mathematical proof.
 </p>
 
 <p align="center">
-  <a href="#why-axiomguard">Why AxiomGuard?</a> &bull;
+  <a href="#the-pragmatic-enterprise-philosophy">Philosophy</a> &bull;
   <a href="#installation">Installation</a> &bull;
   <a href="#quickstart">Quickstart</a> &bull;
   <a href="#self-correction-loop">Self-Correction</a> &bull;
@@ -25,6 +26,43 @@
   <a href="#architecture">Architecture</a> &bull;
   <a href="#contributing">Contributing</a>
 </p>
+
+---
+
+## The Pragmatic Enterprise Philosophy
+
+AxiomGuard follows the **"Dumb but Unbreakable"** doctrine. We deliberately reject intelligent verification in favor of mathematically provable, fully auditable, zero-surprise enforcement.
+
+> *"A guardrail that sometimes works is worse than no guardrail at all — it creates false confidence."*
+
+### 1. Deterministic Verification (Math > Vibes)
+
+When Z3 says UNSAT, it's a **mathematical proof** — not an LLM's opinion. Same rules + same claims = same result, every time. No temperature, no randomness, no "it depends."
+
+### 2. Bring Your Own Rules (BYOR)
+
+AxiomGuard is an **enforcement engine**, not a rule generator. Domain experts (compliance officers, doctors, lawyers) write the rules in human-readable YAML. We enforce them. You own the liability — because you wrote the rules, not an AI.
+
+### 3. Transparent Extraction (Auditability First)
+
+The LLM extraction step is the weakest link — and we don't hide it. AxiomGuard always exposes the exact claims the LLM extracted **before** Z3 processes them. Auditors can immediately distinguish extraction errors from logic errors.
+
+### 4. Zero-LLM Debugging (Hardcoded Error Mappings)
+
+Every YAML rule has a `message` field written by a human. When Z3 returns UNSAT, AxiomGuard returns **exactly that string** — no LLM translation, no paraphrasing, no hallucinated explanations.
+
+```yaml
+- name: max_transfer_limit
+  type: range
+  entity: transaction
+  relation: amount_thb
+  max: 50000
+  severity: error
+  message: "Transaction exceeds 50,000 THB limit. Requires branch approval."
+  #         ↑ This EXACT string is returned on violation. No LLM involved.
+```
+
+> Read the full [Architecture Philosophy](docs/architecture_philosophy.md) for the complete rationale and trust model.
 
 ---
 
@@ -39,18 +77,14 @@ Standard RAG pipelines retrieve context using **vector similarity** — but vect
 cosine_similarity(A, B) = 0.96  ← Almost identical — but logically contradictory!
 ```
 
-AxiomGuard adds a **mathematically rigorous verification layer** that catches what vectors miss.
-
 | Feature | AxiomGuard | Prompt-based checks | Embedding filters |
 |---------|:----------:|:-------------------:|:-----------------:|
 | **Deterministic** (zero false positives) | Yes | No | No |
-| **Explainable** (proof trace, not vibes) | Yes | No | No |
+| **Auditable** (hardcoded error messages) | Yes | No | No |
 | **Self-correcting** (auto-fix hallucinations) | Yes | No | No |
 | **Zero token cost** for verification | Yes | No | Yes |
 | **Latency** | ~10ms | 500ms+ | ~10ms |
 | **Provider-agnostic** | Yes | Varies | N/A |
-
-**When AxiomGuard says it's a hallucination, it's a mathematical proof — not a guess.**
 
 ---
 
@@ -70,17 +104,17 @@ pip install "axiomguard[all]"         # Everything + vector DBs
 
 ### API Key Setup (for full features)
 
-Basic verification (`verify()`) works **without any API key** using the built-in mock backend. For production use (complex sentences, AI-generated rules, self-correction), set up an LLM backend:
+Basic verification (`verify()`) works **without any API key** using the built-in mock backend. For production use (complex sentence extraction, self-correction), set up an LLM backend:
 
 ```bash
-# Option A: Anthropic (Claude) — recommended
+# macOS / Linux
 export ANTHROPIC_API_KEY="sk-ant-..."
 
-# Option B: OpenAI (GPT-4o)
-export OPENAI_API_KEY="sk-..."
+# Windows (CMD)
+set ANTHROPIC_API_KEY=sk-ant-...
 
-# Option C: Local LLM (Ollama) — no API key needed
-# Just run: ollama serve
+# Windows (PowerShell)
+$env:ANTHROPIC_API_KEY="sk-ant-..."
 ```
 
 > Each user provides their own API key. No keys are bundled with the package.
@@ -132,18 +166,36 @@ rules:
 ```python
 from axiomguard import KnowledgeBase, verify_with_kb
 
-kb = KnowledgeBase("company.axiom.yml")
-result = verify_with_kb("The CEO is John and the company is in Chiang Mai", kb)
+kb = KnowledgeBase()
+kb.load("company.axiom.yml")
+result = verify_with_kb("The CEO is John", kb)
+
 print(result.is_hallucinating)   # True
-print(result.violated_rules)     # [hq_location, ceo_identity]
+print(result.violated_rules)     # [{'name': 'ceo_identity', 'message': 'CEO is Somchai.', ...}]
+# ↑ The message is EXACTLY what the human wrote in YAML. No LLM translation.
 ```
 
-### 3. Self-Correction Loop (Auto-Fix Hallucinations)
+### 3. Inspect Extracted Claims (Audit Trail)
+
+```python
+from axiomguard import extract_claims
+
+claims = extract_claims("Transfer 800,000 THB to a crypto wallet")
+for claim in claims:
+    print(f"  {claim.subject}.{claim.relation} = {claim.object}")
+
+# Auditor can verify: Did the LLM extract correctly?
+# If it extracted "8000" instead of "800000" — that's an EXTRACTION error,
+# not a Z3 error. Transparent. Traceable.
+```
+
+### 4. Self-Correction Loop (Auto-Fix Hallucinations)
 
 ```python
 from axiomguard import KnowledgeBase, generate_with_guard
 
-kb = KnowledgeBase("company.axiom.yml")
+kb = KnowledgeBase()
+kb.load("company.axiom.yml")
 
 result = generate_with_guard(
     prompt="Tell me about the company",
@@ -157,13 +209,9 @@ print(result.response)  # The verified (or best-effort) response
 print(result.attempts)  # How many tries it took
 ```
 
-> Detects hallucination → builds correction prompt with Z3 proof → regenerates → re-verifies. 88% cumulative fix rate after 2 retries at ~$0.02/correction.
-
 ---
 
 ## Self-Correction Loop
-
-AxiomGuard v0.5.0 evolves from a static guardrail into a **self-healing agent**:
 
 ```
 User Prompt + KnowledgeBase
@@ -175,12 +223,12 @@ User Prompt + KnowledgeBase
        │
        ▼
 ┌──────────────┐
-│ Extract Claims│  multi-claim SRO extraction
+│ Extract Claims│  SRO extraction (auditable)
 └──────┬───────┘
        │
        ▼
 ┌──────────────┐
-│ Z3 Verify    │  YAML rules + axiom facts
+│ Z3 Verify    │  YAML rules → hardcoded message on failure
 └──────┬───────┘
        │
   ┌────┴────┐
@@ -188,8 +236,8 @@ User Prompt + KnowledgeBase
  SAT      UNSAT
   │         │
   ▼         ▼
-DONE   Build Correction Prompt
-       (include Z3 proof trace)
+DONE   Return hardcoded error_msg
+       + build correction prompt
               │
               ▼
          Retry (max 2)
@@ -240,15 +288,6 @@ from axiomguard.backends.generic_http_llm import create_http_translator
 axiomguard.set_llm_backend(create_http_translator(model="llama3.1"))
 ```
 
-### Custom Backend
-
-```python
-def my_backend(text: str) -> dict:
-    return {"subject": "company", "relation": "location", "object": "Bangkok"}
-
-axiomguard.set_llm_backend(my_backend)
-```
-
 ---
 
 ## API Reference
@@ -261,26 +300,16 @@ axiomguard.set_llm_backend(my_backend)
 | `verify_with_kb(response, kb)` | Verify against a KnowledgeBase |
 | `verify_chunks(chunks, kb)` | Verify & annotate RAG chunks |
 | `generate_with_guard(prompt, kb, llm_generate)` | Self-correcting generation loop |
-| `extract_claims(text)` | Extract SRO triples from text |
-| `translate_to_logic(text)` | Single NL → SRO triple |
-
-### Configuration
-
-| Function | Description |
-|----------|-------------|
-| `set_llm_backend(backend)` | Swap NL-to-Logic provider |
-| `set_entity_resolver(resolver)` | Custom entity normalization |
-| `set_knowledge_base(kb)` | Set default KnowledgeBase |
-| `load_rules(path)` | Load `.axiom.yml` rules |
+| `extract_claims(text)` | Extract SRO triples (auditable) |
 
 ### Data Models
 
 | Class | Description |
 |-------|-------------|
 | `Claim` | Subject-Relation-Object triple (Pydantic validated) |
-| `VerificationResult` | Z3 proof output: `is_hallucinating`, `reason`, `violated_rules` |
-| `CorrectionResult` | Self-correction output: `status`, `response`, `attempts`, `history` |
-| `KnowledgeBase` | YAML rule loader & manager |
+| `VerificationResult` | `is_hallucinating`, `reason`, `violated_rules` (hardcoded messages) |
+| `CorrectionResult` | `status`, `response`, `attempts`, `history` |
+| `KnowledgeBase` | YAML rule loader, compiler & verifier |
 
 ---
 
@@ -288,14 +317,14 @@ axiomguard.set_llm_backend(my_backend)
 
 ```
 axiomguard/
-├── __init__.py              # Public API (clean re-exports)
+├── __init__.py              # Public API
 ├── core.py                  # Orchestration: extraction → resolution → Z3
-├── z3_engine.py             # Z3 SMT solver: formal contradiction proofs
+├── z3_engine.py             # Z3 SMT solver: formal proofs
 ├── models.py                # Claim, VerificationResult, CorrectionResult
-├── knowledge_base.py        # YAML rule loading & KnowledgeBase
-├── parser.py                # .axiom.yml → rule objects
+├── knowledge_base.py        # YAML rule compiler & verifier
+├── parser.py                # .axiom.yml → Pydantic rule objects
 ├── correction.py            # Self-correction prompt builder
-├── resolver.py              # Entity normalization (fuzzy matching)
+├── resolver.py              # Entity normalization (deterministic)
 ├── integration.py           # Vector DB integration (Chroma, Qdrant)
 └── backends/
     ├── anthropic_llm.py     # Claude
@@ -303,29 +332,38 @@ axiomguard/
     └── generic_http_llm.py  # Ollama / vLLM / any OpenAI-compatible
 ```
 
+### Trust Model
+
+```
+TRUSTED (deterministic, auditable):
+  ├── YAML rules (.axiom.yml)  ← written by human domain experts
+  ├── Z3 Solver (math)         ← formal proof, zero false positives
+  └── Error messages            ← hardcoded in YAML, no LLM involved
+
+UNTRUSTED (must audit):
+  └── LLM extraction            ← always exposed for human review
+```
+
 ### Design Principles
 
 1. **ML handles language, Math handles truth.** Neither modifies the other.
-2. **Never alter the embedding space.** Verification is a separate layer.
-3. **Provider-agnostic.** Swap LLM backends in one line. Z3 is always the judge.
-4. **Zero false positives.** When Z3 returns UNSAT, the contradiction is *proven*.
+2. **Zero-LLM-Middleman.** Z3 returns hardcoded messages, not LLM explanations.
+3. **BYOR.** We provide the engine. You provide (and own) the rules.
+4. **Extraction transparency.** Every claim is visible before Z3 processes it.
+5. **Zero false positives.** When Z3 returns UNSAT, the contradiction is *proven*.
 
 ---
 
 ## Roadmap
 
-- [x] **v0.1.0** — Z3 engine, SRO triples, multi-provider backends
-- [x] **v0.2.0** — Multi-claim extraction, entity resolution, fuzzy matching
-- [x] **v0.3.0** — KnowledgeBase, explainable proof traces, YAML rules
-- [x] **v0.4.0** — Selective verification, numeric/date rules, vector DB integration
-- [x] **v0.5.0** — Self-correction loop, auto-fix hallucinations
-- [ ] **v0.6.0** — Negation handling, temporal logic
-- [ ] **v0.7.0** — Advanced rule types (comparisons, cardinality)
-- [ ] **v0.8.0** — Performance optimization, caching, parallel verification
-- [ ] **v0.9.0** — Benchmarking against real-world hallucination datasets
-- [ ] **v1.0.0** — Production-grade release with LangChain/LlamaIndex integrations
+- [x] **v0.5.1** — Core engine, self-correction, PyPI, 71 tests
+- [ ] **v0.6.0** — Hardened enforcement: deterministic errors, audit trail, date-bounds, negation
+- [ ] **v0.7.0** — Advanced rules, Axiom Studio (visual rule editor), LangChain/LlamaIndex
+- [ ] **v0.8.0** — Performance: caching, parallel verification
+- [ ] **v0.9.0** — Benchmarks against real-world hallucination datasets
+- [ ] **v1.0.0** — Production release
 
-See the full **[Roadmap to v1.0.0](docs/ROADMAP.md)** for details.
+See the full **[Roadmap](docs/ROADMAP.md)** and **[Architecture Philosophy](docs/architecture_philosophy.md)**.
 
 ---
 
@@ -339,8 +377,6 @@ cd AxiomGuard
 pip install -e ".[all,dev]"
 pytest tests/
 ```
-
-All ideas, feedback, and PRs are welcome — see [where to contribute](CONTRIBUTING.md#where-to-contribute).
 
 ---
 
@@ -357,5 +393,5 @@ MIT License. See [LICENSE](LICENSE).
 ---
 
 <p align="center">
-  <sub>Built by <a href="https://github.com/witchwasin">Witchwasin K.</a> — proving that AI should prove its answers.</sub>
+  <sub>Built by <a href="https://github.com/witchwasin">Witchwasin K.</a> — because AI should prove its answers, not guess them.</sub>
 </p>

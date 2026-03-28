@@ -19,7 +19,7 @@ from pathlib import Path
 from typing import Annotated, List, Literal, Optional, Union
 
 import yaml
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 
 
 # =====================================================================
@@ -50,13 +50,38 @@ class TestExample(BaseModel):
 
 
 class _RuleBase(BaseModel):
-    """Shared fields across all rule types."""
+    """Shared fields across all rule types.
+
+    The `message` field is the hardcoded error string returned verbatim
+    when Z3 proves a violation. No LLM translates or paraphrases this —
+    it is the exact text the human domain expert wrote.
+
+    For error-severity rules, `message` should always be set. A warning
+    is issued at parse time if it is missing.
+    """
 
     name: str = Field(min_length=1)
     description: str = ""
     severity: Literal["error", "warning", "info"] = "error"
-    message: str = ""
+    message: str = Field(
+        default="",
+        description="Hardcoded error message returned verbatim on violation. "
+        "No LLM involved — this is the exact string auditors will see.",
+    )
     examples: list[TestExample] = Field(default_factory=list)
+
+    @model_validator(mode="after")
+    def warn_missing_message(self) -> "_RuleBase":
+        if self.severity == "error" and not self.message:
+            import warnings
+            warnings.warn(
+                f'Rule "{self.name}" has severity=error but no message. '
+                f"Enterprise best practice: always set a hardcoded message "
+                f"for deterministic error reporting.",
+                UserWarning,
+                stacklevel=2,
+            )
+        return self
 
 
 class UniqueRule(_RuleBase):
