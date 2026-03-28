@@ -112,52 +112,7 @@ triple = translate_to_logic("The company is in Bangkok")
 
 ---
 
-## Rule Generation
-
-### `generate_rules(text, domain, ...)`
-
-Generate `.axiom.yml` YAML from natural language.
-
-```python
-from axiomguard import generate_rules
-
-yaml_str = generate_rules(text="HQ is Bangkok", domain="company")
-```
-
-**Parameters:**
-
-| Parameter | Type | Description |
-|-----------|------|-------------|
-| `text` | `str` | Natural language document |
-| `domain` | `str` | Domain name for the YAML file |
-| `llm_generate` | `Callable` | Optional custom LLM function |
-| `model` | `str` | Optional model name override |
-
-**Returns:** `str` (valid YAML)
-
----
-
-### `generate_rules_to_kb(text, domain, ...)`
-
-Generate rules and load directly into a KnowledgeBase.
-
-```python
-from axiomguard import generate_rules_to_kb
-
-kb = generate_rules_to_kb(text="...", domain="my_domain")
-```
-
-**Returns:** `KnowledgeBase`
-
----
-
-### `generate_rules_to_file(text, output_path, ...)`
-
-Generate rules and save to a file.
-
-**Returns:** `Path`
-
----
+## Rule Authoring
 
 ### `RuleBuilder`
 

@@ -9,7 +9,6 @@
 | `verify()` with simple sentences | No (mock backend) |
 | `verify_with_kb()` with YAML rules | No |
 | `RuleBuilder` (programmatic rules) | No |
-| `generate_rules()` (AI-generated rules) | **Yes** |
 | `generate_with_guard()` (self-correction) | **Yes** |
 | Real LLM extraction (complex sentences) | **Yes** |
 

@@ -61,27 +61,18 @@ Scenarios covered:
 
 ---
 
-## Document to Rules Demo
+## Document to Rules Demo (Legacy)
 
 **File:** `examples/document_to_rules_demo.py`
 
-Shows Mode 2 (AI-Generated) and Mode 3 (Programmatic) rule creation.
+!!! warning "Deprecated"
+    This demo uses `generate_rules()` which is deprecated. AxiomGuard follows the **BYOR (Bring Your Own Rules)** philosophy — domain experts write rules, not LLMs. See [Why We Don't Auto-Generate Rules](guides/ai-generated-rules.md).
+
+Shows programmatic rule creation with `RuleBuilder`.
 
 ```bash
-# Without API key (uses mock LLM)
-python examples/document_to_rules_demo.py
-
-# With real LLM
-export ANTHROPIC_API_KEY="sk-ant-..."
 python examples/document_to_rules_demo.py
 ```
-
-Demonstrates:
-
-- Converting a Thai loan policy document into YAML rules
-- `generate_rules()` and `generate_rules_to_kb()`
-- Fallback to mock when no API key is available
-- Comparison between AI-generated and programmatic approaches
 
 ---
 

@@ -38,10 +38,10 @@ nav:
     - API Key Setup: getting-started/api-keys.md
   - Guides:
     - YAML Rules Format: guides/yaml-rules.md
-    - AI-Generated Rules: guides/ai-generated-rules.md
     - Programmatic Rules: guides/programmatic-rules.md
     - Self-Correction Loop: guides/self-correction.md
     - LLM Backends: guides/llm-backends.md
+    - Architecture Philosophy: guides/architecture-philosophy.md
   - API Reference: api-reference.md
   - Examples: examples.md
   - Roadmap: roadmap.md

@@ -1,9 +1,10 @@
 # AxiomGuard
 
-**Mathematical Logic Guardrails for LLMs**
+**AxiomGuard is not smart. It is correct.**
 
-Deterministic hallucination detection & self-correction for RAG pipelines.
-Powered by Z3 Theorem Prover. Provider-agnostic. Zero false positives.
+Deterministic verification engine for LLM outputs.
+Powered by Z3 Theorem Prover. Fully auditable. Zero false positives.
+You write the rules. We enforce them with mathematical proof.
 
 ---
 
@@ -60,11 +61,11 @@ cosine_similarity(A, B) = 0.96  ← Almost identical — but contradictory!
 
     [:octicons-arrow-right-24: YAML Format](guides/yaml-rules.md)
 
--   **AI-Generated Rules**
+-   **Architecture Philosophy**
 
-    Let an LLM convert your policy documents into rules.
+    Why we follow "Dumb but Unbreakable" — zero LLM in the error path.
 
-    [:octicons-arrow-right-24: Auto-generate](guides/ai-generated-rules.md)
+    [:octicons-arrow-right-24: Philosophy](guides/architecture-philosophy.md)
 
 -   **API Reference**
 
@@ -76,9 +77,11 @@ cosine_similarity(A, B) = 0.96  ← Almost identical — but contradictory!
 
 ---
 
-## Three Ways to Create Rules
+## Two Ways to Create Rules (BYOR)
 
-=== "Manual (YAML)"
+AxiomGuard is an enforcement engine. **You** write the rules — we enforce them.
+
+=== "YAML (Recommended)"
 
     ```yaml
     rules:
@@ -87,24 +90,20 @@ cosine_similarity(A, B) = 0.96  ← Almost identical — but contradictory!
         entity: company
         relation: location
         value: Bangkok
+        severity: error
+        message: "HQ is Bangkok — not negotiable."
+        #         ↑ This EXACT string is returned on violation.
     ```
 
-=== "AI-Generated"
-
-    ```python
-    from axiomguard import generate_rules
-
-    yaml_str = generate_rules("Company HQ is Bangkok. CEO is Somchai.")
-    ```
-
-=== "Programmatic"
+=== "Programmatic (RuleBuilder)"
 
     ```python
     from axiomguard import RuleBuilder
 
     kb = (
         RuleBuilder(domain="company")
-        .unique("hq", entity="company", relation="location", value="Bangkok")
+        .unique("hq", entity="company", relation="location",
+                value="Bangkok", message="HQ is Bangkok.")
         .to_knowledge_base()
     )
     ```

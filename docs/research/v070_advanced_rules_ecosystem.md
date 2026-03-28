@@ -224,12 +224,15 @@ New file: `axiomguard/integrations/llamaindex.py`
 
 ### 4.1 Vision
 
-A simple web UI where users:
-1. **Type natural language** (policy, contract, regulation)
-2. **Get YAML rules** generated automatically
-3. **Edit rules** visually (add/remove/modify)
-4. **Test rules** against sample inputs
-5. **Export** `.axiom.yml` files
+A visual rule **editor** (NOT generator) where domain experts:
+1. **Write YAML rules** with syntax highlighting and validation
+2. **Edit rules** visually (add/remove/modify via forms)
+3. **Test rules** against sample inputs with live Z3 verification
+4. **Export** `.axiom.yml` files
+5. **Import** existing `.axiom.yml` files for editing
+
+> **BYOR principle:** Axiom Studio helps humans write correct YAML.
+> It does NOT auto-generate rules from documents.
 
 ### 4.2 Technology
 
@@ -245,15 +248,15 @@ A simple web UI where users:
 │  Axiom Studio                             [Dark] │
 ├──────────────────────────────────────────────────┤
 │                                                  │
-│  📝 Input                    📋 Generated Rules  │
+│  📝 Rule Editor              📋 YAML Preview     │
 │  ┌───────────────────┐      ┌─────────────────┐ │
-│  │ Paste your policy │      │ axiomguard: "0.7"│ │
-│  │ document here...  │  →   │ domain: ...      │ │
-│  │                   │      │ rules:           │ │
-│  │                   │      │   - name: ...    │ │
+│  │ Name: [________]  │      │ axiomguard: "0.7"│ │
+│  │ Type: [unique ▾]  │  →   │ domain: ...      │ │
+│  │ Entity: [_______] │      │ rules:           │ │
+│  │ Message: [______] │      │   - name: ...    │ │
 │  └───────────────────┘      └─────────────────┘ │
 │                                                  │
-│  [Generate Rules]           [Download YAML]      │
+│  [Add Rule]                 [Download YAML]      │
 │                                                  │
 │  ─────────────────────────────────────────────── │
 │                                                  │

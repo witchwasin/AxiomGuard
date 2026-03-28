@@ -1,97 +1,34 @@
-# AI-Generated Rules
+# Why We Don't Auto-Generate Rules
 
-Turn natural language documents into `.axiom.yml` rules automatically using an LLM.
+!!! warning "Architectural Decision"
+    AxiomGuard deliberately does NOT use LLMs to generate YAML rules from documents. This page explains why.
 
-!!! tip "The killer feature"
-    Instead of writing YAML by hand, send your 5-page policy document to Claude and get verified rules back in seconds.
+## The Problem with AI-Generated Rules
 
-## Basic Usage
+Using an LLM to read a policy document and output YAML rules sounds efficient. In practice, it creates:
 
-```python
-from axiomguard import generate_rules
+1. **Fake citations** — LLMs invent constraints that don't exist in the source document
+2. **Hallucinated thresholds** — "Maximum 10 items" when the policy says 5
+3. **Liability gap** — No human signed off on the generated rules
+4. **False confidence** — Teams trust rules they didn't write or review
 
-yaml_str = generate_rules(
-    text="""
-    Company Policy:
-    1. HQ is in Bangkok
-    2. CEO is Somchai
-    3. Maximum loan is 500,000 THB
-    4. Minimum salary is 15,000 THB
-    """,
-    domain="company_policy",
-)
+## Our Approach: BYOR (Bring Your Own Rules)
 
-print(yaml_str)  # Valid .axiom.yml YAML
-```
+AxiomGuard is an **enforcement engine**, not a rule generator.
 
-## Direct to KnowledgeBase
+| We DO | We DON'T |
+|-------|----------|
+| Enforce YAML rules via Z3 | Auto-generate rules from documents |
+| Validate rule syntax | Interpret legal/medical PDFs |
+| Provide visual rule editor (Axiom Studio, coming in v0.7.0) | Claim our rules are "correct" |
+| Return pass/fail with hardcoded messages | Provide legal/medical advice |
 
-Skip the YAML file — go straight to verification:
+## How to Write Rules
 
-```python
-from axiomguard import generate_rules_to_kb
+- [YAML Rules Format](yaml-rules.md) — learn all rule types
+- [Programmatic Rules](programmatic-rules.md) — build rules from code with `RuleBuilder`
+- **Axiom Studio** (v0.7.0) — visual UI to help humans write and test YAML
 
-kb = generate_rules_to_kb(
-    text="ผู้กู้ต้องมีอายุ 20-60 ปี เงินเดือนขั้นต่ำ 15,000 บาท",
-    domain="loan_policy",
-)
+## Legacy Note
 
-# Ready to verify immediately
-result = kb.verify(claims)
-```
-
-## Save to File
-
-```python
-from axiomguard import generate_rules_to_file
-
-path = generate_rules_to_file(
-    text="...",
-    output_path="rules/company.axiom.yml",
-    domain="company_policy",
-)
-```
-
-## Custom LLM Backend
-
-Pass any `(str) -> str` callable:
-
-```python
-def my_llm(prompt: str) -> str:
-    # Call your preferred LLM
-    return call_my_api(prompt)
-
-yaml_str = generate_rules(
-    text="...",
-    llm_generate=my_llm,
-)
-```
-
-## Thai Language Support
-
-Works with Thai documents out of the box:
-
-```python
-yaml_str = generate_rules(
-    text="""
-    นโยบายสินเชื่อส่วนบุคคล บริษัท AxiomFinance
-    1. ผู้กู้ต้องมีอายุระหว่าง 20-60 ปี
-    2. เงินเดือนขั้นต่ำ 15,000 บาทต่อเดือน
-    3. อายุงานปัจจุบันไม่น้อยกว่า 6 เดือน
-    4. ห้ามมีประวัติค้างชำระเกิน 30 วัน
-    """,
-    domain="personal_loan",
-)
-```
-
-The generated YAML will include Thai messages and aliases.
-
-## Best Practices
-
-1. **Review generated rules** — AI-generated rules are a starting point. Review them before production use.
-2. **Version control** — Save generated YAML to `.axiom.yml` files and commit to git.
-3. **Iterate** — Generate, review, edit, test. Use `kb.run_examples()` to validate.
-4. **Mix modes** — Use AI to generate the initial set, then fine-tune manually.
-
-!!! warning "Requires API key"
-    Set `ANTHROPIC_API_KEY` or `OPENAI_API_KEY` environment variable. See [API Key Setup](../getting-started/api-keys.md).
+The `generate_rules()` function exists in the codebase from v0.5.x but is **deprecated** and will be removed in a future version. Do not use it for production workloads.

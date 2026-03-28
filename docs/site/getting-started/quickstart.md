@@ -78,25 +78,24 @@ print(result.attempts)  # How many tries
 !!! tip "88% fix rate"
     The self-correction loop fixes 88% of hallucinations within 2 retries at ~$0.02 per correction (using Haiku).
 
-## 4. AI-Generated Rules (from documents)
+## 4. Inspect Extracted Claims (Audit Trail)
 
-Skip writing YAML by hand — let an LLM read your policy documents:
+AxiomGuard always exposes what the LLM extracted **before** Z3 processes it:
 
 ```python
-from axiomguard import generate_rules_to_kb
+from axiomguard import extract_claims
 
-kb = generate_rules_to_kb("""
-    Company policy:
-    1. HQ is in Bangkok
-    2. CEO is Somchai
-    3. Maximum loan amount is 500,000 THB
-""")
+claims = extract_claims("Transfer 800,000 THB to a crypto wallet")
+for claim in claims:
+    print(f"  {claim.subject}.{claim.relation} = {claim.object}")
 
-# kb is ready to verify immediately
+# Auditor can verify: Did the LLM extract correctly?
+# If it extracted "8000" instead of "800000" — that's an EXTRACTION error,
+# not a Z3 error. Transparent. Traceable.
 ```
 
-!!! warning "Requires API key"
-    AI-generated rules need an LLM backend. Set `ANTHROPIC_API_KEY` or `OPENAI_API_KEY`.
+!!! tip "BYOR — Bring Your Own Rules"
+    AxiomGuard is an enforcement engine. Domain experts write the rules in YAML, AxiomGuard enforces them with Z3 mathematical proof. See [Architecture Philosophy](https://github.com/witchwasin/AxiomGuard/blob/main/docs/architecture_philosophy.md).
 
 ## Next Steps
 
