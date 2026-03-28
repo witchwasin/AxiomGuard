@@ -1,0 +1,89 @@
+axiomguard: "0.3"
+domain: international_banking
+
+entities:
+  - name: customer
+    aliases: ["ลูกค้า", "ผู้ใช้", "client", "user", "account_holder"]
+  - name: transaction
+    aliases: ["ธุรกรรม", "การโอน", "transfer", "payment"]
+
+rules:
+  # --- Transfer Limits ---
+  - name: max_single_transfer
+    type: range
+    entity: transaction
+    relation: amount_thb
+    value_type: int
+    max: 500000
+    severity: error
+    message: "Single transfer must not exceed 500,000 THB."
+
+  - name: max_daily_transfer
+    type: range
+    entity: customer
+    relation: daily_total_thb
+    value_type: int
+    max: 2000000
+    severity: error
+    message: "Daily transfer total must not exceed 2,000,000 THB."
+
+  # --- Prohibited Activities ---
+  - name: no_cryptocurrency
+    type: exclusion
+    entity: transaction
+    relation: category
+    values: [cryptocurrency, bitcoin, ethereum, defi, NFT]
+    severity: error
+    message: "Cryptocurrency transactions are strictly prohibited."
+
+  - name: no_gambling
+    type: exclusion
+    entity: transaction
+    relation: category
+    values: [gambling, casino, betting, lottery_overseas]
+    severity: error
+    message: "Gambling-related transactions are prohibited."
+
+  # --- Account Rules ---
+  - name: one_account_type
+    type: unique
+    entity: customer
+    relation: account_type
+    severity: error
+    message: "Customer can only have one account type."
+
+  - name: one_risk_level
+    type: unique
+    entity: customer
+    relation: risk_level
+    severity: error
+    message: "Customer can only have one risk classification."
+
+  # --- KYC Compliance ---
+  - name: kyc_before_international
+    type: dependency
+    when:
+      entity: transaction
+      relation: destination
+      value: international
+    then:
+      require:
+        relation: kyc_status
+        value: verified
+    severity: error
+    message: "International transfers require completed KYC verification."
+
+  - name: high_value_approval
+    type: dependency
+    when:
+      entity: transaction
+      relation: amount_thb
+      value: "200000"
+      value_type: int
+      operator: ">"
+    then:
+      require:
+        relation: approval_status
+        value: manager_approved
+    severity: error
+    message: "Transfers above 200,000 THB require manager approval."
