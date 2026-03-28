@@ -1,0 +1,75 @@
+site_name: AxiomGuard
+site_description: Mathematical Logic Guardrails for LLMs
+site_url: https://witchwasin.github.io/AxiomGuard
+repo_url: https://github.com/witchwasin/AxiomGuard
+repo_name: witchwasin/AxiomGuard
+
+theme:
+  name: material
+  palette:
+    - scheme: default
+      primary: deep purple
+      accent: amber
+      toggle:
+        icon: material/brightness-7
+        name: Switch to dark mode
+    - scheme: slate
+      primary: deep purple
+      accent: amber
+      toggle:
+        icon: material/brightness-4
+        name: Switch to light mode
+  features:
+    - navigation.tabs
+    - navigation.sections
+    - navigation.expand
+    - navigation.top
+    - content.code.copy
+    - content.code.annotate
+    - search.highlight
+  icon:
+    repo: fontawesome/brands/github
+
+nav:
+  - Home: index.md
+  - Getting Started:
+    - Installation: getting-started/installation.md
+    - Quickstart: getting-started/quickstart.md
+    - API Key Setup: getting-started/api-keys.md
+  - Guides:
+    - YAML Rules Format: guides/yaml-rules.md
+    - AI-Generated Rules: guides/ai-generated-rules.md
+    - Programmatic Rules: guides/programmatic-rules.md
+    - Self-Correction Loop: guides/self-correction.md
+    - LLM Backends: guides/llm-backends.md
+  - API Reference: api-reference.md
+  - Examples: examples.md
+  - Roadmap: roadmap.md
+  - Contributing: contributing.md
+  - Changelog: changelog.md
+
+markdown_extensions:
+  - admonition
+  - pymdownx.details
+  - pymdownx.superfences
+  - pymdownx.highlight:
+      anchor_linenums: true
+  - pymdownx.inlinehilite
+  - pymdownx.tabbed:
+      alternate_style: true
+  - attr_list
+  - md_in_html
+  - toc:
+      permalink: true
+
+docs_dir: docs/site
+
+plugins:
+  - search
+
+extra:
+  social:
+    - icon: fontawesome/brands/github
+      link: https://github.com/witchwasin/AxiomGuard
+    - icon: fontawesome/brands/python
+      link: https://pypi.org/project/axiomguard/

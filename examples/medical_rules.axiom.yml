@@ -1,0 +1,69 @@
+axiomguard: "0.3"
+domain: medical_safety
+
+entities:
+  - name: patient
+    aliases: ["ผู้ป่วย", "คนไข้", "client"]
+  - name: doctor
+    aliases: ["แพทย์", "หมอ", "physician"]
+
+rules:
+  # --- Drug Interactions ---
+  - name: warfarin_aspirin_conflict
+    type: exclusion
+    entity: patient
+    relation: medication
+    values: [Warfarin, Aspirin]
+    severity: error
+    message: "Warfarin and Aspirin cannot be prescribed together — high bleeding risk."
+
+  - name: ssri_maoi_conflict
+    type: exclusion
+    entity: patient
+    relation: medication
+    values: [Fluoxetine, Phenelzine]
+    severity: error
+    message: "SSRI + MAOI combination is life-threatening (serotonin syndrome)."
+
+  # --- Dosage Limits ---
+  - name: paracetamol_max_dose
+    type: range
+    entity: patient
+    relation: paracetamol_mg_daily
+    value_type: int
+    max: 4000
+    severity: error
+    message: "Paracetamol must not exceed 4,000 mg/day (hepatotoxicity risk)."
+
+  - name: ibuprofen_max_dose
+    type: range
+    entity: patient
+    relation: ibuprofen_mg_daily
+    value_type: int
+    max: 1200
+    severity: error
+    message: "OTC Ibuprofen must not exceed 1,200 mg/day."
+
+  # --- Patient Facts ---
+  - name: one_blood_type
+    type: unique
+    entity: patient
+    relation: blood_type
+    severity: error
+    message: "A patient can only have one blood type."
+
+  - name: one_primary_doctor
+    type: unique
+    entity: patient
+    relation: primary_doctor
+    severity: error
+    message: "A patient has exactly one primary doctor."
+
+  # --- Allergy Safety ---
+  - name: allergy_penicillin_amoxicillin
+    type: exclusion
+    entity: patient
+    relation: medication
+    values: [Penicillin_allergy, Amoxicillin]
+    severity: error
+    message: "Patient with Penicillin allergy must NOT receive Amoxicillin (cross-reactivity)."
