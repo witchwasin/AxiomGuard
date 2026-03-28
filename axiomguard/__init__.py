@@ -9,15 +9,18 @@ from axiomguard.core import (
     verify,
     verify_with_kb,
 )
+from axiomguard.integration import verify_chunks, verification_stats
 from axiomguard.knowledge_base import KnowledgeBase
 from axiomguard.models import Claim, ExtractionResult, VerificationResult
-from axiomguard.parser import AxiomParser, RuleSet
+from axiomguard.parser import AxiomParser, RangeRule, RuleSet
 from axiomguard.resolver import EntityResolver
 
-__version__ = "0.3.0-dev"
+__version__ = "0.4.0-dev"
 __all__ = [
     "verify",
     "verify_with_kb",
+    "verify_chunks",
+    "verification_stats",
     "extract_claims",
     "translate_to_logic",
     "set_llm_backend",
@@ -31,5 +34,6 @@ __all__ = [
     "EntityResolver",
     "AxiomParser",
     "KnowledgeBase",
+    "RangeRule",
     "RuleSet",
 ]

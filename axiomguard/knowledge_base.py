@@ -1,8 +1,7 @@
 """
 AxiomGuard Knowledge Base — Rule Compiler & Verification Engine
 
-Translates declarative YAML rules into Z3 ForAll expressions and provides
-a verify() method that uses the compiled rules as background knowledge.
+v0.4.0: Numeric/date sorts, selective filtering, axiom_relations().
 
 Pipeline:
   .axiom.yml → AxiomParser → RuleSet → KnowledgeBase.add_rule() → Z3 ForAll
@@ -10,20 +9,13 @@ Pipeline:
                                      KnowledgeBase.verify()
                                               ↓
                                      VerificationResult
-
-Usage:
-    from axiomguard.knowledge_base import KnowledgeBase
-
-    kb = KnowledgeBase()
-    kb.load("rules/medical.axiom.yml")
-    result = kb.verify(response_claims, axiom_claims)
 """
 
 from __future__ import annotations
 
+from datetime import date
 from itertools import combinations
 from pathlib import Path
-from typing import List
 
 import z3
 
@@ -32,10 +24,37 @@ from axiomguard.parser import (
     AxiomParser,
     DependencyRule,
     ExclusionRule,
+    RangeRule,
     RuleSet,
     UniqueRule,
 )
 from axiomguard.resolver import EntityResolver
+
+
+# =====================================================================
+# Operator helpers
+# =====================================================================
+
+_OPS = {
+    "=": lambda a, b: a == b,
+    "==": lambda a, b: a == b,
+    "!=": lambda a, b: a != b,
+    ">": lambda a, b: a > b,
+    "<": lambda a, b: a < b,
+    ">=": lambda a, b: a >= b,
+    "<=": lambda a, b: a <= b,
+}
+
+
+def _parse_numeric(value: str, value_type: str) -> int | float:
+    """Parse a string value into a numeric Python value."""
+    if value_type == "int":
+        return int(value)
+    elif value_type == "float":
+        return float(value)
+    elif value_type == "date":
+        return date.fromisoformat(value).toordinal()
+    raise ValueError(f"Unknown numeric value_type: {value_type}")
 
 
 # =====================================================================
@@ -49,16 +68,8 @@ class KnowledgeBase:
     Loads .axiom.yml files, compiles rules into Z3 ForAll expressions,
     and integrates entity aliases into an EntityResolver.
 
-    Example::
-
-        kb = KnowledgeBase()
-        kb.load("rules/medical.axiom.yml")
-
-        result = kb.verify(
-            response_claims=[Claim(subject="patient", relation="takes", object="Aspirin")],
-            axiom_claims=[Claim(subject="patient", relation="takes", object="Warfarin")],
-        )
-        print(result.is_hallucinating)  # True — drug interaction
+    v0.4.0: Supports numeric (IntSort/RealSort) and date (ordinal day)
+    attributes alongside the string-based Relation function.
     """
 
     def __init__(self, resolver: EntityResolver | None = None) -> None:
@@ -66,7 +77,7 @@ class KnowledgeBase:
         self._resolver = resolver or EntityResolver()
         self._rulesets: list[RuleSet] = []
 
-        # Z3 shared infrastructure
+        # Z3 shared infrastructure — string relations
         self._StringSort = z3.StringSort()
         self._Relation = z3.Function(
             "Relation",
@@ -76,7 +87,11 @@ class KnowledgeBase:
             z3.BoolSort(),
         )
 
-        # Compiled Z3 constraints (ForAll expressions)
+        # Z3 numeric attribute functions (v0.4.0)
+        # Maps relation name → (z3.FuncDeclRef, value_type_str)
+        self._numeric_attrs: dict[str, tuple[z3.FuncDeclRef, str]] = {}
+
+        # Compiled Z3 constraints
         self._constraints: list[z3.ExprRef] = []
         # Rule metadata for error messages
         self._rule_meta: list[dict] = []
@@ -85,78 +100,111 @@ class KnowledgeBase:
 
     @property
     def resolver(self) -> EntityResolver:
-        """The EntityResolver used by this KnowledgeBase."""
         return self._resolver
 
     @property
     def constraint_count(self) -> int:
-        """Number of compiled Z3 constraints."""
         return len(self._constraints)
 
     @property
     def rule_count(self) -> int:
-        """Number of loaded rules."""
         return len(self._rule_meta)
+
+    def axiom_relations(self) -> set[str]:
+        """Return all relations that have at least one rule (v0.4.0).
+
+        Used by selective verification to skip claims whose relations
+        have no matching rules — provably irrelevant, safe to skip.
+        """
+        rels: set[str] = set()
+        for rule in self._loaded_rules:
+            if isinstance(rule, UniqueRule):
+                rels.add(rule.relation)
+            elif isinstance(rule, ExclusionRule):
+                rels.add(rule.relation)
+            elif isinstance(rule, DependencyRule):
+                rels.add(rule.when.relation)
+                rels.add(rule.then.require.relation)
+            elif isinstance(rule, RangeRule):
+                rels.add(rule.relation)
+        return rels
 
     # =================================================================
     # Loading
     # =================================================================
 
     def load(self, path: str | Path) -> RuleSet:
-        """Load an .axiom.yml file: parse, validate, compile, and integrate.
-
-        Args:
-            path: Path to the .axiom.yml file.
-
-        Returns:
-            The parsed RuleSet (for inspection).
-        """
         ruleset = self._parser.load(path)
         self._integrate(ruleset)
         return ruleset
 
     def load_string(self, content: str) -> RuleSet:
-        """Load from a YAML string (useful for testing).
-
-        Args:
-            content: YAML content.
-
-        Returns:
-            The parsed RuleSet.
-        """
         ruleset = self._parser.load_string(content)
         self._integrate(ruleset)
         return ruleset
 
     def _integrate(self, ruleset: RuleSet) -> None:
-        """Integrate a parsed RuleSet: compile rules + merge entities."""
         self._rulesets.append(ruleset)
-
-        # Merge entity aliases into resolver
         for entity in ruleset.entities:
             alias_map = {alias: entity.name for alias in entity.aliases}
             self._resolver.add_aliases(alias_map)
-
-        # Compile each rule
         for rule in ruleset.rules:
             self.add_rule(rule)
+
+    # =================================================================
+    # Numeric Attribute Functions (v0.4.0)
+    # =================================================================
+
+    def _get_numeric_attr(self, relation: str, value_type: str) -> z3.FuncDeclRef:
+        """Get or create a Z3 numeric function for a relation.
+
+        Creates: attr_int_<relation>(StringSort) -> IntSort
+                 attr_float_<relation>(StringSort) -> RealSort
+                 attr_date_<relation>(StringSort) -> IntSort  (ordinal days)
+        """
+        if relation in self._numeric_attrs:
+            return self._numeric_attrs[relation][0]
+
+        if value_type in ("int", "date"):
+            sort = z3.IntSort()
+        elif value_type == "float":
+            sort = z3.RealSort()
+        else:
+            raise ValueError(f"Cannot create numeric attr for value_type={value_type}")
+
+        fn = z3.Function(f"attr_{value_type}_{relation}", self._StringSort, sort)
+        self._numeric_attrs[relation] = (fn, value_type)
+        return fn
+
+    def _make_z3_val(self, value: str, value_type: str):
+        """Convert a string value to the appropriate Z3 value."""
+        if value_type == "int":
+            return z3.IntVal(int(value))
+        elif value_type == "float":
+            return z3.RealVal(value)
+        elif value_type == "date":
+            return z3.IntVal(date.fromisoformat(value).toordinal())
+        return z3.StringVal(value)
+
+    def _apply_operator(self, lhs, operator: str, rhs):
+        """Apply a comparison operator to Z3 expressions."""
+        if operator not in _OPS:
+            raise ValueError(f"Unknown operator: {operator}")
+        return _OPS[operator](lhs, rhs)
 
     # =================================================================
     # Rule Compilation
     # =================================================================
 
-    def add_rule(self, rule: UniqueRule | ExclusionRule | DependencyRule) -> None:
-        """Compile a single rule into Z3 constraints and store it.
-
-        Args:
-            rule: A validated rule object from the parser.
-        """
+    def add_rule(self, rule) -> None:
         if isinstance(rule, UniqueRule):
             constraints = self._compile_unique(rule)
         elif isinstance(rule, ExclusionRule):
             constraints = self._compile_exclusion(rule)
         elif isinstance(rule, DependencyRule):
             constraints = self._compile_dependency(rule)
+        elif isinstance(rule, RangeRule):
+            constraints = self._compile_range(rule)
         else:
             raise ValueError(f"Unknown rule type: {type(rule)}")
 
@@ -171,7 +219,6 @@ class KnowledgeBase:
         self._loaded_rules.append(rule)
 
     def _compile_unique(self, rule: UniqueRule) -> list[z3.ExprRef]:
-        """unique → ForAll([s, o1, o2], Implies(And(R(rel,s,o1), R(rel,s,o2)), o1 == o2))"""
         R = self._Relation
         s = z3.Const("s", self._StringSort)
         o1 = z3.Const("o1", self._StringSort)
@@ -189,7 +236,6 @@ class KnowledgeBase:
         ]
 
     def _compile_exclusion(self, rule: ExclusionRule) -> list[z3.ExprRef]:
-        """exclusion → ForAll([s], Not(And(R(rel,s,v1), R(rel,s,v2)))) for all pairs"""
         R = self._Relation
         s = z3.Const("s", self._StringSort)
         rel = z3.StringVal(rule.relation)
@@ -210,41 +256,74 @@ class KnowledgeBase:
         return constraints
 
     def _compile_dependency(self, rule: DependencyRule) -> list[z3.ExprRef]:
-        """dependency → Implies + auto-uniqueness on the 'then' relation.
-
-        The implication alone is not enough: if the 'then' relation is not
-        exclusive, Z3 allows both the required value AND a different value
-        to coexist (SAT). We add a uniqueness constraint on the 'then'
-        relation so that conflicting values cause UNSAT.
-        """
+        """Compile dependency with optional numeric/date support (v0.4.0)."""
         R = self._Relation
         s = z3.Const("s", self._StringSort)
         o1 = z3.Const("o1", self._StringSort)
         o2 = z3.Const("o2", self._StringSort)
 
-        when_rel = z3.StringVal(rule.when.relation)
-        when_val = z3.StringVal(rule.when.value)
-        then_rel = z3.StringVal(rule.then.require.relation)
-        then_val = z3.StringVal(rule.then.require.value)
+        # --- Build WHEN expression ---
+        if rule.when.value_type != "string":
+            attr_fn = self._get_numeric_attr(rule.when.relation, rule.when.value_type)
+            z3_val = self._make_z3_val(rule.when.value, rule.when.value_type)
+            when_expr = self._apply_operator(attr_fn(s), rule.when.operator, z3_val)
+        else:
+            when_rel = z3.StringVal(rule.when.relation)
+            when_val = z3.StringVal(rule.when.value)
+            when_expr = R(when_rel, s, when_val)
 
-        return [
-            # The implication: if when-condition, then requirement
-            z3.ForAll(
-                [s],
-                z3.Implies(
-                    R(when_rel, s, when_val),
-                    R(then_rel, s, then_val),
-                ),
-            ),
-            # Auto-uniqueness on the 'then' relation: one value per entity
-            z3.ForAll(
-                [s, o1, o2],
-                z3.Implies(
-                    z3.And(R(then_rel, s, o1), R(then_rel, s, o2)),
-                    o1 == o2,
-                ),
-            ),
+        # --- Build THEN expression ---
+        if rule.then.require.value_type != "string":
+            then_fn = self._get_numeric_attr(
+                rule.then.require.relation, rule.then.require.value_type
+            )
+            then_z3_val = self._make_z3_val(
+                rule.then.require.value, rule.then.require.value_type
+            )
+            then_expr = self._apply_operator(
+                then_fn(s), rule.then.require.operator, then_z3_val
+            )
+        else:
+            then_rel = z3.StringVal(rule.then.require.relation)
+            then_val = z3.StringVal(rule.then.require.value)
+            then_expr = R(then_rel, s, then_val)
+
+        constraints = [
+            z3.ForAll([s], z3.Implies(when_expr, then_expr)),
         ]
+
+        # Auto-uniqueness only for string-based 'then' relations
+        if rule.then.require.value_type == "string":
+            then_rel = z3.StringVal(rule.then.require.relation)
+            constraints.append(
+                z3.ForAll(
+                    [s, o1, o2],
+                    z3.Implies(
+                        z3.And(R(then_rel, s, o1), R(then_rel, s, o2)),
+                        o1 == o2,
+                    ),
+                )
+            )
+
+        return constraints
+
+    def _compile_range(self, rule: RangeRule) -> list[z3.ExprRef]:
+        """range → ForAll([s], And(attr(s) >= min, attr(s) <= max))"""
+        attr_fn = self._get_numeric_attr(rule.relation, rule.value_type)
+        s = z3.Const("s", self._StringSort)
+
+        bounds = []
+        if rule.min is not None:
+            min_val = z3.IntVal(int(rule.min)) if rule.value_type == "int" else z3.RealVal(str(rule.min))
+            bounds.append(attr_fn(s) >= min_val)
+        if rule.max is not None:
+            max_val = z3.IntVal(int(rule.max)) if rule.value_type == "int" else z3.RealVal(str(rule.max))
+            bounds.append(attr_fn(s) <= max_val)
+
+        if not bounds:
+            return []
+
+        return [z3.ForAll([s], z3.And(*bounds) if len(bounds) > 1 else bounds[0])]
 
     # =================================================================
     # Verification
@@ -256,24 +335,7 @@ class KnowledgeBase:
         axiom_claims: list[Claim] | None = None,
         timeout_ms: int = 2000,
     ) -> VerificationResult:
-        """Verify response claims against compiled rules and optional axiom facts.
-
-        Pipeline:
-          1. Create solver with timeout.
-          2. Add compiled YAML rules (ForAll constraints).
-          3. Assert axiom claims as background facts.
-          4. Create tracked assumptions for response claims.
-          5. Check satisfiability → VerificationResult.
-
-        Args:
-            response_claims: Claims to verify (tracked via assumptions).
-            axiom_claims: Optional ground-truth facts.
-            timeout_ms: Z3 solver timeout (default: 2000ms).
-
-        Returns:
-            VerificationResult with confidence, reason, and contradicted_claims.
-        """
-        # Resolve entities in all claims
+        # Resolve entities
         response_resolved, resp_warnings = self._resolver.resolve_claims(response_claims)
         axiom_resolved = []
         ax_warnings: list[str] = []
@@ -290,11 +352,11 @@ class KnowledgeBase:
         for constraint in self._constraints:
             solver.add(constraint)
 
-        # Add axiom facts (ground truths)
+        # Assert axiom facts (ground truths + numeric attributes)
         for ax in axiom_resolved:
-            solver.add(self._claim_to_z3(ax))
+            self._assert_claim(solver, ax)
 
-        # Add response claims as tracked assumptions
+        # Assert response claims as tracked assumptions
         trackers: list[z3.ExprRef] = []
         tracker_map: dict[str, int] = {}
 
@@ -302,7 +364,11 @@ class KnowledgeBase:
             tracker = z3.Bool(f"claim_{i}")
             trackers.append(tracker)
             tracker_map[f"claim_{i}"] = i
-            solver.add(z3.Implies(tracker, self._claim_to_z3(claim)))
+
+            # Build all Z3 expressions for this claim
+            exprs = self._claim_exprs(claim)
+            combined = z3.And(*exprs) if len(exprs) > 1 else exprs[0]
+            solver.add(z3.Implies(tracker, combined))
 
         # Check
         result = solver.check(*trackers)
@@ -315,19 +381,13 @@ class KnowledgeBase:
                 if str(t) in tracker_map
             ])
 
-            # Match contradicted claims to YAML rules
             violated = self._match_violated_rules(
                 response_resolved, axiom_resolved, contradicted
             )
 
-            # Build reason: prefer custom YAML messages, fallback to Z3 detail
-            reasons = []
-            for v in violated:
-                if v["message"]:
-                    reasons.append(v["message"])
+            reasons = [v["message"] for v in violated if v["message"]]
 
             if not reasons:
-                # Fallback: build from claim data
                 for idx in contradicted:
                     rc = response_resolved[idx]
                     for ax in axiom_resolved:
@@ -370,7 +430,6 @@ class KnowledgeBase:
                 contradicted_claims=[],
             )
 
-        # z3.unknown — likely timeout
         return VerificationResult(
             is_hallucinating=False,
             reason=f"Z3 returned unknown (possible timeout at {timeout_ms}ms).",
@@ -379,21 +438,67 @@ class KnowledgeBase:
             contradicted_claims=[],
         )
 
+    # =================================================================
+    # Claim → Z3 (with numeric support)
+    # =================================================================
+
+    def _claim_exprs(self, claim: Claim) -> list[z3.ExprRef]:
+        """Convert a Claim to a list of Z3 expressions.
+
+        Always asserts the string Relation. Additionally asserts the
+        numeric attribute function if the relation has one registered.
+        """
+        # String relation (always)
+        str_expr = self._Relation(
+            z3.StringVal(claim.relation),
+            z3.StringVal(claim.subject),
+            z3.StringVal(claim.object),
+        )
+        if claim.negated:
+            str_expr = z3.Not(str_expr)
+
+        exprs = [str_expr]
+
+        # Numeric attribute (if registered)
+        if claim.relation in self._numeric_attrs:
+            attr_fn, vtype = self._numeric_attrs[claim.relation]
+            try:
+                val = _parse_numeric(claim.object, vtype)
+                if vtype in ("int", "date"):
+                    exprs.append(attr_fn(z3.StringVal(claim.subject)) == z3.IntVal(val))
+                elif vtype == "float":
+                    exprs.append(attr_fn(z3.StringVal(claim.subject)) == z3.RealVal(str(val)))
+            except (ValueError, TypeError):
+                pass  # non-parseable object — skip numeric assertion
+
+        return exprs
+
+    def _claim_to_z3(self, claim: Claim) -> z3.ExprRef:
+        """Single Z3 expression for backward compat (string Relation only)."""
+        expr = self._Relation(
+            z3.StringVal(claim.relation),
+            z3.StringVal(claim.subject),
+            z3.StringVal(claim.object),
+        )
+        if claim.negated:
+            return z3.Not(expr)
+        return expr
+
+    def _assert_claim(self, solver: z3.Solver, claim: Claim) -> None:
+        """Assert a claim into the solver, including numeric attributes."""
+        for expr in self._claim_exprs(claim):
+            solver.add(expr)
+
+    # =================================================================
+    # Rule Violation Matching
+    # =================================================================
+
     def _match_violated_rules(
         self,
         response_resolved: list[Claim],
         axiom_resolved: list[Claim],
         contradicted: list[int],
     ) -> list[dict]:
-        """Match contradicted claims to the YAML rules they violated.
-
-        Examines each contradicted response claim and checks which loaded
-        rules apply based on relation and values.
-
-        Returns:
-            List of rule metadata dicts (name, type, severity, message).
-            Deduplicated — each rule appears at most once.
-        """
         violated: list[dict] = []
         seen_rules: set[str] = set()
 
@@ -429,43 +534,52 @@ class KnowledgeBase:
                                 break
 
                 elif isinstance(rule, DependencyRule):
-                    if (
-                        rc.relation == rule.when.relation
-                        and rc.object == rule.when.value
-                    ):
-                        # Check that the 'then' requirement is NOT met
-                        then_met = any(
-                            ax.relation == rule.then.require.relation
-                            and ax.object == rule.then.require.value
-                            for ax in axiom_resolved
-                        )
-                        if not then_met:
-                            violated.append(meta)
-                            seen_rules.add(meta["name"])
+                    if rule.when.value_type == "string":
+                        if (
+                            rc.relation == rule.when.relation
+                            and rc.object == rule.when.value
+                        ):
+                            then_met = any(
+                                ax.relation == rule.then.require.relation
+                                and ax.object == rule.then.require.value
+                                for ax in axiom_resolved
+                            )
+                            if not then_met:
+                                violated.append(meta)
+                                seen_rules.add(meta["name"])
+                    else:
+                        # Numeric when — check if claim relation matches
+                        if rc.relation == rule.when.relation:
+                            try:
+                                val = _parse_numeric(rc.object, rule.when.value_type)
+                                threshold = _parse_numeric(rule.when.value, rule.when.value_type)
+                                op = _OPS.get(rule.when.operator, lambda a, b: a == b)
+                                if op(val, threshold):
+                                    violated.append(meta)
+                                    seen_rules.add(meta["name"])
+                            except (ValueError, TypeError):
+                                pass
+
+                elif isinstance(rule, RangeRule):
+                    if rc.relation == rule.relation:
+                        try:
+                            val = _parse_numeric(rc.object, rule.value_type)
+                            if rule.min is not None and val < rule.min:
+                                violated.append(meta)
+                                seen_rules.add(meta["name"])
+                            elif rule.max is not None and val > rule.max:
+                                violated.append(meta)
+                                seen_rules.add(meta["name"])
+                        except (ValueError, TypeError):
+                            pass
 
         return violated
-
-    def _claim_to_z3(self, claim: Claim) -> z3.ExprRef:
-        """Convert a Claim to a Z3 expression using this KB's Relation function."""
-        expr = self._Relation(
-            z3.StringVal(claim.relation),
-            z3.StringVal(claim.subject),
-            z3.StringVal(claim.object),
-        )
-        if claim.negated:
-            return z3.Not(expr)
-        return expr
 
     # =================================================================
     # Inline Example Runner
     # =================================================================
 
     def run_examples(self) -> tuple[int, int, list[str]]:
-        """Run all inline test examples from loaded rules.
-
-        Returns:
-            (passed, total, failures) where failures is a list of error messages.
-        """
         from axiomguard.core import _extract
 
         passed = 0
@@ -476,8 +590,6 @@ class KnowledgeBase:
             for rule in ruleset.rules:
                 for example in rule.examples:
                     total += 1
-
-                    # Extract claims from input and axioms
                     response_claims = _extract(example.input)
                     axiom_claims: list[Claim] = []
                     for axiom_text in example.axioms:
@@ -485,17 +597,14 @@ class KnowledgeBase:
 
                     result = self.verify(response_claims, axiom_claims)
 
-                    expected_fail = example.expect == "fail"
-                    actual_fail = result.is_hallucinating
-
-                    if expected_fail == actual_fail:
+                    if (example.expect == "fail") == result.is_hallucinating:
                         passed += 1
                     else:
                         failures.append(
                             f'Rule "{rule.name}" example: '
                             f'input="{example.input}", '
                             f'expected={example.expect}, '
-                            f'got={"fail" if actual_fail else "pass"}'
+                            f'got={"fail" if result.is_hallucinating else "pass"}'
                         )
 
         return passed, total, failures

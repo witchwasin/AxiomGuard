@@ -16,7 +16,7 @@ Usage:
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Annotated, List, Literal, Union
+from typing import Annotated, List, Literal, Optional, Union
 
 import yaml
 from pydantic import BaseModel, Field
@@ -98,6 +98,7 @@ class WhenCondition(BaseModel):
     relation: str = Field(min_length=1)
     value: str = Field(min_length=1)
     operator: str = "="
+    value_type: Literal["string", "int", "float", "date"] = "string"
 
 
 class ThenRequirement(BaseModel):
@@ -106,6 +107,7 @@ class ThenRequirement(BaseModel):
     relation: str = Field(min_length=1)
     value: str = Field(min_length=1)
     operator: str = "="
+    value_type: Literal["string", "int", "float", "date"] = "string"
 
 
 class ThenClause(BaseModel):
@@ -135,12 +137,33 @@ class DependencyRule(_RuleBase):
     then: ThenClause
 
 
+class RangeRule(_RuleBase):
+    """Bound rule: a numeric attribute must be within min/max.
+
+    Example YAML:
+        - name: Dosage within safe range
+          type: range
+          entity: prescription
+          relation: dosage_mg
+          value_type: int
+          min: 0
+          max: 500
+    """
+
+    type: Literal["range"]
+    entity: str = Field(min_length=1)
+    relation: str = Field(min_length=1)
+    value_type: Literal["int", "float"] = "int"
+    min: Optional[float] = None
+    max: Optional[float] = None
+
+
 # =====================================================================
 # Discriminated Union
 # =====================================================================
 
 Rule = Annotated[
-    Union[UniqueRule, ExclusionRule, DependencyRule],
+    Union[UniqueRule, ExclusionRule, DependencyRule, RangeRule],
     Field(discriminator="type"),
 ]
 
