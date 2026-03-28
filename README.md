@@ -1,8 +1,9 @@
 <p align="center">
-  <img src="https://img.shields.io/pypi/v/axiomguard?style=for-the-badge&color=blue" alt="PyPI Version" />
+  <a href="https://pypi.org/project/axiomguard/"><img src="https://img.shields.io/pypi/v/axiomguard?style=for-the-badge&color=blue" alt="PyPI Version" /></a>
+  <a href="https://github.com/witchwasin/AxiomGuard/actions"><img src="https://img.shields.io/github/actions/workflow/status/witchwasin/AxiomGuard/ci.yml?style=for-the-badge&label=CI" alt="CI" /></a>
   <img src="https://img.shields.io/badge/tests-47%20passed-brightgreen?style=for-the-badge" alt="Tests" />
   <img src="https://img.shields.io/badge/python-3.9+-green?style=for-the-badge&logo=python&logoColor=white" alt="Python" />
-  <img src="https://img.shields.io/badge/license-MIT-orange?style=for-the-badge" alt="License" />
+  <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-orange?style=for-the-badge" alt="License" /></a>
   <img src="https://img.shields.io/badge/engine-Z3_SMT_Solver-red?style=for-the-badge" alt="Z3" />
 </p>
 
@@ -295,11 +296,15 @@ axiomguard/
 - [ ] **v0.7.0** — Advanced rule types (comparisons, cardinality)
 - [ ] **v0.8.0** — Performance optimization, caching, parallel verification
 - [ ] **v0.9.0** — Benchmarking against real-world hallucination datasets
-- [ ] **v1.0.0** — Production-grade release
+- [ ] **v1.0.0** — Production-grade release with LangChain/LlamaIndex integrations
+
+See the full **[Roadmap to v1.0.0](docs/ROADMAP.md)** for details.
 
 ---
 
 ## Contributing
+
+See **[CONTRIBUTING.md](CONTRIBUTING.md)** for the full guide. Quick start:
 
 ```bash
 git clone https://github.com/witchwasin/AxiomGuard.git
@@ -308,15 +313,13 @@ pip install -e ".[all,dev]"
 pytest tests/
 ```
 
-Areas where contributions are especially valuable:
+All ideas, feedback, and PRs are welcome — see [where to contribute](CONTRIBUTING.md#where-to-contribute).
 
-- **Better NL-to-Logic translation** — entity normalization, multi-claim extraction
-- **New relation types** — numeric comparisons, temporal logic, negation
-- **Vector DB integrations** — Pinecone, Weaviate, Milvus
-- **Benchmarks** — test against real-world hallucination datasets
-- **New LLM backends** — Gemini, Mistral, Cohere
+---
 
-All ideas, feedback, and PRs are welcome.
+## Changelog
+
+See **[CHANGELOG.md](CHANGELOG.md)** for the full version history.
 
 ---
 
