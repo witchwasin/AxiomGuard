@@ -1,24 +1,28 @@
 """
 AxiomGuard Z3 Engine — Formal Contradiction Detection via SMT Solver
 
-Uses the Z3 theorem prover to mathematically verify whether a response's
-SRO triple contradicts a set of axiom SRO triples.
+v0.2.0: Assumptions API with unsat_core() for multi-claim verification.
 
 Core idea:
-  1. Model each SRO triple as a relation: Relation(relation_name, subject, object)
-  2. Add a Uniqueness Axiom for exclusive relations: a given (relation, subject)
-     pair can map to at most ONE object.
-  3. Assert all axiom triples and the response triple.
-  4. If the solver returns UNSAT → proven contradiction → hallucination.
+  1. Assert axiom claims as background knowledge (permanent).
+  2. Create tracked boolean assumptions for each response claim.
+  3. One solver.check() call verifies ALL claims at once.
+  4. If UNSAT → unsat_core() pinpoints exactly WHICH claims contradict.
+  5. Timeout guard prevents production hanging.
 """
 
 from __future__ import annotations
 
+from typing import Tuple
+
 import z3
+
+from axiomguard.models import Claim
+
 
 # Relations where a subject can only have ONE object value.
 # e.g., a company can only have one location, one CEO, etc.
-EXCLUSIVE_RELATIONS = {
+EXCLUSIVE_RELATIONS = frozenset({
     "location",
     "identity",
     "ceo",
@@ -26,42 +30,75 @@ EXCLUSIVE_RELATIONS = {
     "temporal",
     "quantity",
     "ownership",
-}
+    "capital",
+    "founder",
+})
 
 
-def check_contradiction_z3(
-    axioms_sro: list[dict],
-    response_sro: dict,
-) -> tuple[bool, str]:
-    """Check if a response triple contradicts axiom triples using Z3.
+# =====================================================================
+# v0.2.0 — Multi-Claim Verification with Assumptions API
+# =====================================================================
+
+
+def _claim_to_z3(
+    claim: Claim,
+    relation_fn: z3.FuncDeclRef,
+) -> z3.ExprRef:
+    """Convert a Claim to a Z3 boolean expression.
+
+    Handles negation: if claim.negated is True, wraps in z3.Not().
+    """
+    expr = relation_fn(
+        z3.StringVal(claim.relation),
+        z3.StringVal(claim.subject),
+        z3.StringVal(claim.object),
+    )
+    if claim.negated:
+        return z3.Not(expr)
+    return expr
+
+
+def check_claims(
+    axiom_claims: list[Claim],
+    response_claims: list[Claim],
+    timeout_ms: int = 2000,
+) -> tuple[bool, str, list[int]]:
+    """Verify response claims against axiom claims using Z3 Assumptions API.
+
+    Pipeline:
+      1. Define Relation function and uniqueness axioms.
+      2. Assert all axiom claims as background knowledge.
+      3. Create tracked assumptions for each response claim.
+      4. Single solver.check() with all assumptions.
+      5. If UNSAT → extract contradicted claim indices via unsat_core().
 
     Args:
-        axioms_sro: List of axiom dicts with keys "subject", "relation", "object".
-        response_sro: Response dict with keys "subject", "relation", "object".
+        axiom_claims: Ground-truth claims (asserted permanently).
+        response_claims: Claims to verify (tracked via assumptions).
+        timeout_ms: Z3 solver timeout in milliseconds (default: 2000).
 
     Returns:
-        (True, reason) if Z3 proves a contradiction (UNSAT).
-        (False, reason) if no contradiction found (SAT or UNKNOWN).
+        (is_hallucinating, reason, contradicted_indices)
+        - is_hallucinating: True if Z3 proves a contradiction (UNSAT).
+        - reason: Human-readable explanation.
+        - contradicted_indices: Indices of response_claims in the unsat core.
     """
     solver = z3.Solver()
+    solver.set("timeout", timeout_ms)
 
     # Define the Relation function: (relation_name, subject, object) -> Bool
     StringSort = z3.StringSort()
-    Relation = z3.Function("Relation", StringSort, StringSort, StringSort, z3.BoolSort())
+    Relation = z3.Function(
+        "Relation", StringSort, StringSort, StringSort, z3.BoolSort()
+    )
 
     # ------------------------------------------------------------------
-    # Uniqueness Axiom (for exclusive relations):
-    #   ForAll([r, s, o1, o2],
-    #       Implies(And(Relation(r, s, o1), Relation(r, s, o2)), o1 == o2))
-    #
-    # This means: if a relation is asserted for the same (relation, subject)
-    # with two different objects, it's a contradiction.
+    # Uniqueness Axioms for exclusive relations
     # ------------------------------------------------------------------
     s = z3.Const("s", StringSort)
     o1 = z3.Const("o1", StringSort)
     o2 = z3.Const("o2", StringSort)
 
-    # Apply uniqueness only to exclusive relations
     for rel_name in EXCLUSIVE_RELATIONS:
         rel_val = z3.StringVal(rel_name)
         solver.add(
@@ -75,51 +112,107 @@ def check_contradiction_z3(
         )
 
     # ------------------------------------------------------------------
-    # Assert axiom triples
+    # Assert axiom claims (background knowledge — permanent)
     # ------------------------------------------------------------------
-    for ax in axioms_sro:
-        solver.add(
-            Relation(
-                z3.StringVal(ax["relation"]),
-                z3.StringVal(ax["subject"]),
-                z3.StringVal(ax["object"]),
-            )
-        )
+    for ax in axiom_claims:
+        solver.add(_claim_to_z3(ax, Relation))
 
     # ------------------------------------------------------------------
-    # Assert response triple
+    # Create tracked assumptions for response claims
     # ------------------------------------------------------------------
-    solver.add(
-        Relation(
-            z3.StringVal(response_sro["relation"]),
-            z3.StringVal(response_sro["subject"]),
-            z3.StringVal(response_sro["object"]),
-        )
-    )
+    trackers: list[z3.ExprRef] = []
+    tracker_map: dict[str, int] = {}  # tracker name → claim index
+
+    for i, claim in enumerate(response_claims):
+        tracker = z3.Bool(f"claim_{i}")
+        trackers.append(tracker)
+        tracker_map[f"claim_{i}"] = i
+        solver.add(z3.Implies(tracker, _claim_to_z3(claim, Relation)))
 
     # ------------------------------------------------------------------
-    # Check satisfiability
+    # Check satisfiability (single call for ALL claims)
     # ------------------------------------------------------------------
-    result = solver.check()
+    result = solver.check(*trackers)
 
     if result == z3.unsat:
-        # Find which axiom was contradicted for the reason message
-        r_rel = response_sro["relation"]
-        r_subj = response_sro["subject"]
-        r_obj = response_sro["object"]
+        # Extract which response claims caused the contradiction
+        core = solver.unsat_core()
+        contradicted = [
+            tracker_map[str(t)]
+            for t in core
+            if str(t) in tracker_map
+        ]
+        contradicted.sort()
 
-        for ax in axioms_sro:
-            if ax["subject"] == r_subj and ax["relation"] == r_rel and ax["object"] != r_obj:
-                return True, (
-                    f'Z3 proved contradiction (UNSAT): '
-                    f'{r_subj}.{r_rel} cannot be both '
-                    f'"{ax["object"]}" (axiom) and "{r_obj}" (response)'
+        # Build human-readable reason
+        reasons: list[str] = []
+        for idx in contradicted:
+            rc = response_claims[idx]
+            # Find the axiom it contradicts
+            for ax in axiom_claims:
+                if (
+                    ax.subject == rc.subject
+                    and ax.relation == rc.relation
+                    and ax.object != rc.object
+                    and not ax.negated
+                    and not rc.negated
+                ):
+                    reasons.append(
+                        f'{rc.subject}.{rc.relation} cannot be both '
+                        f'"{ax.object}" (axiom) and "{rc.object}" (response)'
+                    )
+                    break
+            else:
+                reasons.append(
+                    f'claim[{idx}]: ({rc.subject}, {rc.relation}, {rc.object})'
                 )
 
-        return True, "Z3 proved a contradiction: UNSAT"
+        reason_str = "; ".join(reasons) if reasons else "Z3 proved contradiction"
+        return True, f"Z3 proved contradiction (UNSAT): {reason_str}", contradicted
 
     if result == z3.sat:
-        return False, "No contradiction detected (SAT)."
+        return False, "No contradiction detected (SAT).", []
 
-    # z3.unknown
-    return False, "Z3 returned unknown — no contradiction proven."
+    # z3.unknown — likely timeout
+    return False, f"Z3 returned unknown (possible timeout at {timeout_ms}ms).", []
+
+
+# =====================================================================
+# v0.1.0 — Backward Compatible Interface
+# =====================================================================
+
+
+def check_contradiction_z3(
+    axioms_sro: list[dict],
+    response_sro: dict,
+) -> tuple[bool, str]:
+    """Check if a response triple contradicts axiom triples (v0.1.0 compat).
+
+    Wraps check_claims() for backward compatibility with dict-based callers.
+
+    Args:
+        axioms_sro: List of axiom dicts with keys "subject", "relation", "object".
+        response_sro: Response dict with keys "subject", "relation", "object".
+
+    Returns:
+        (is_hallucinating, reason)
+    """
+    axiom_claims = [
+        Claim(
+            subject=ax["subject"],
+            relation=ax["relation"],
+            object=ax["object"],
+            negated=ax.get("negated", False),
+        )
+        for ax in axioms_sro
+    ]
+
+    response_claim = Claim(
+        subject=response_sro["subject"],
+        relation=response_sro["relation"],
+        object=response_sro["object"],
+        negated=response_sro.get("negated", False),
+    )
+
+    is_hall, reason, _ = check_claims(axiom_claims, [response_claim])
+    return is_hall, reason
