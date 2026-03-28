@@ -50,7 +50,7 @@ from axiomguard.rule_generator import (
 # --- Entity resolution ---
 from axiomguard.resolver import EntityResolver
 
-__version__ = "0.5.0"
+__version__ = "0.5.1"
 
 __all__ = [
     # Core API

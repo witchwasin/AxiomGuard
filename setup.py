@@ -9,8 +9,8 @@ from setuptools import setup, find_packages
 
 setup(
     name="axiomguard",
-    version="0.5.0",
-    author="Witchwasin K. (Thai Novel)",
+    version="0.5.1",
+    author="Witchwasin K.",
     author_email="witchwasin@gmail.com",
     description="Deterministic Neuro-Symbolic Guardrails for Enterprise AI.",
     long_description=open("README.md", encoding="utf-8").read(),

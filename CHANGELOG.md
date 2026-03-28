@@ -6,6 +6,28 @@ This project follows [Semantic Versioning](https://semver.org/).
 
 ---
 
+## [0.5.1] - 2026-03-28
+
+### Added
+- **AI-Generated Rules (Mode 2)** — `generate_rules()` sends natural language documents to an LLM and returns valid `.axiom.yml` rules automatically
+- **Programmatic Rules (Mode 3)** — `RuleBuilder` fluent API for building rules from code, databases, or APIs at runtime
+- `generate_rules_to_kb()` — document to KnowledgeBase in one call
+- `generate_rules_to_file()` — document to `.axiom.yml` file
+- MkDocs Material documentation site (12 pages) with GitHub Pages auto-deploy
+- 4 new example scripts: `loan_approval_demo.py`, `medical_bot_guard.py`, `document_to_rules_demo.py`, `medical_rules.axiom.yml`
+- `py.typed` marker (PEP 561) for mypy/pyright support
+- GitHub Issue & PR templates
+
+### Fixed
+- 7 test collection errors caused by helper function named `test()` — renamed to `_check()`
+- Author name on PyPI corrected to "Witchwasin K."
+
+### Changed
+- **Three ways to create rules:** Manual (YAML) / AI-Generated (LLM) / Programmatic (RuleBuilder)
+- Test count: 47 → 71 (24 new tests for rule generator)
+
+---
+
 ## [0.5.0] - 2026-03-28
 
 ### Added
