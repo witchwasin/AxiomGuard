@@ -1,7 +1,7 @@
 <p align="center">
   <a href="https://pypi.org/project/axiomguard/"><img src="https://img.shields.io/pypi/v/axiomguard?style=for-the-badge&color=blue" alt="PyPI Version" /></a>
   <a href="https://github.com/witchwasin/AxiomGuard/actions"><img src="https://img.shields.io/github/actions/workflow/status/witchwasin/AxiomGuard/ci.yml?style=for-the-badge&label=CI" alt="CI" /></a>
-  <img src="https://img.shields.io/badge/tests-47%20passed-brightgreen?style=for-the-badge" alt="Tests" />
+  <img src="https://img.shields.io/badge/tests-71%20passed-brightgreen?style=for-the-badge" alt="Tests" />
   <img src="https://img.shields.io/badge/python-3.9+-green?style=for-the-badge&logo=python&logoColor=white" alt="Python" />
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-orange?style=for-the-badge" alt="License" /></a>
   <img src="https://img.shields.io/badge/engine-Z3_SMT_Solver-red?style=for-the-badge" alt="Z3" />
@@ -67,6 +67,23 @@ pip install "axiomguard[anthropic]"   # Claude
 pip install "axiomguard[openai]"      # GPT-4o
 pip install "axiomguard[all]"         # Everything + vector DBs
 ```
+
+### API Key Setup (for full features)
+
+Basic verification (`verify()`) works **without any API key** using the built-in mock backend. For production use (complex sentences, AI-generated rules, self-correction), set up an LLM backend:
+
+```bash
+# Option A: Anthropic (Claude) — recommended
+export ANTHROPIC_API_KEY="sk-ant-..."
+
+# Option B: OpenAI (GPT-4o)
+export OPENAI_API_KEY="sk-..."
+
+# Option C: Local LLM (Ollama) — no API key needed
+# Just run: ollama serve
+```
+
+> Each user provides their own API key. No keys are bundled with the package.
 
 ---
 
@@ -188,6 +205,11 @@ AxiomGuard is **provider-agnostic**. The Z3 engine is always the same — only t
 
 ### Anthropic (Claude)
 
+```bash
+pip install "axiomguard[anthropic]"
+export ANTHROPIC_API_KEY="sk-ant-..."
+```
+
 ```python
 import axiomguard
 from axiomguard.backends.anthropic_llm import anthropic_translator
@@ -198,6 +220,11 @@ result = axiomguard.verify("The company is in Chiang Mai", ["The company is in B
 
 ### OpenAI (GPT-4o)
 
+```bash
+pip install "axiomguard[openai]"
+export OPENAI_API_KEY="sk-..."
+```
+
 ```python
 import axiomguard
 from axiomguard.backends.openai_llm import openai_translator
@@ -205,7 +232,7 @@ from axiomguard.backends.openai_llm import openai_translator
 axiomguard.set_llm_backend(openai_translator)
 ```
 
-### Local LLMs (Ollama / vLLM)
+### Local LLMs (Ollama / vLLM) — No API Key
 
 ```python
 from axiomguard.backends.generic_http_llm import create_http_translator
