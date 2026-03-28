@@ -39,6 +39,14 @@ from axiomguard.models import (
     VerificationResult,
 )
 
+# --- Rule generation (Mode 2 & 3) ---
+from axiomguard.rule_generator import (
+    RuleBuilder,
+    generate_rules,
+    generate_rules_to_file,
+    generate_rules_to_kb,
+)
+
 # --- Entity resolution ---
 from axiomguard.resolver import EntityResolver
 
@@ -70,6 +78,11 @@ __all__ = [
     "AxiomParser",
     "RangeRule",
     "RuleSet",
+    # Rule generation
+    "RuleBuilder",
+    "generate_rules",
+    "generate_rules_to_file",
+    "generate_rules_to_kb",
     # Entity resolution
     "EntityResolver",
 ]
