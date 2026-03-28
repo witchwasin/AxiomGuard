@@ -13,7 +13,7 @@ from __future__ import annotations
 
 from typing import Callable, List, Tuple
 
-from axiomguard.models import Claim, VerificationResult
+from axiomguard.models import Claim, CorrectionAttempt, CorrectionResult, VerificationResult
 from axiomguard.resolver import EntityResolver
 
 
@@ -346,3 +346,143 @@ def verify_with_kb(
     result.extraction_warnings = all_warnings + result.extraction_warnings
 
     return result
+
+
+# =====================================================================
+# Public API — Self-Correction Loop (v0.5.0)
+# =====================================================================
+
+
+def generate_with_guard(
+    prompt: str,
+    kb,
+    llm_generate: Callable,
+    axiom_claims: list[Claim] | None = None,
+    max_retries: int = 2,
+    timeout_seconds: float = 30.0,
+) -> CorrectionResult:
+    """Generate an LLM response with automated self-correction (v0.5.0).
+
+    Pipeline per attempt:
+      1. llm_generate(current_prompt) -> raw response text
+      2. Extract claims from response
+      3. KB.verify(claims) -> VerificationResult
+      4. If SAT -> return immediately
+      5. If UNSAT -> build correction prompt -> retry
+
+    Fail-safes:
+      - max_retries: hard cap on correction attempts (default: 2)
+      - timeout_seconds: wall-clock timeout for all attempts (default: 30s)
+
+    Args:
+        prompt: The user's original question/instruction.
+        kb: Loaded KnowledgeBase with domain rules.
+        llm_generate: Function (str) -> str that calls any LLM. Provider-agnostic.
+        axiom_claims: Optional ground-truth facts to verify against.
+        max_retries: Maximum correction attempts after first generation (default: 2).
+        timeout_seconds: Wall-clock timeout for the entire call (default: 30s).
+
+    Returns:
+        CorrectionResult with status, final response, and full attempt history.
+    """
+    import time
+    from axiomguard.correction import build_correction_prompt
+
+    max_attempts = 1 + max_retries
+    history: list[CorrectionAttempt] = []
+    current_prompt = prompt
+    deadline = time.monotonic() + timeout_seconds
+
+    for attempt_num in range(1, max_attempts + 1):
+        # --- Timeout check ---
+        if time.monotonic() > deadline:
+            break
+
+        # --- Step 1: Generate ---
+        response_text = llm_generate(current_prompt)
+
+        # --- Step 2: Extract claims ---
+        response_claims = _extract(response_text)
+        resolved_claims, _ = kb.resolver.resolve_claims(response_claims)
+
+        # --- Step 3: Verify ---
+        if not resolved_claims:
+            # No claims extracted — nothing to verify
+            attempt = CorrectionAttempt(
+                attempt_number=attempt_num,
+                response=response_text,
+                claims=[],
+                verification=None,
+                correction_prompt=current_prompt if attempt_num > 1 else None,
+            )
+            history.append(attempt)
+            return CorrectionResult(
+                status="unverifiable",
+                response=response_text,
+                attempts=attempt_num,
+                max_attempts=max_attempts,
+                history=history,
+                final_verification=None,
+            )
+
+        verification = kb.verify(resolved_claims, axiom_claims)
+
+        # --- Step 4: Record attempt ---
+        attempt = CorrectionAttempt(
+            attempt_number=attempt_num,
+            response=response_text,
+            claims=list(resolved_claims),
+            verification=verification,
+            correction_prompt=current_prompt if attempt_num > 1 else None,
+        )
+        history.append(attempt)
+
+        # --- Step 5: Check result ---
+        if not verification.is_hallucinating:
+            # PASS
+            status = "verified" if attempt_num == 1 else "corrected"
+            return CorrectionResult(
+                status=status,
+                response=response_text,
+                attempts=attempt_num,
+                max_attempts=max_attempts,
+                history=history,
+                final_verification=verification,
+            )
+
+        # --- Step 6: Build correction prompt for next attempt ---
+        if attempt_num < max_attempts and time.monotonic() < deadline:
+            current_prompt = build_correction_prompt(
+                original_prompt=prompt,
+                response=response_text,
+                claims=resolved_claims,
+                verification=verification,
+                attempt_number=attempt_num,
+                max_attempts=max_attempts,
+            )
+
+    # --- All attempts exhausted ---
+    # Detect constraint conflict: same violated rules on every attempt
+    if len(history) >= 2:
+        violation_sets = []
+        for h in history:
+            if h.verification and h.verification.violated_rules:
+                names = frozenset(r["name"] for r in h.verification.violated_rules)
+                violation_sets.append(names)
+        if violation_sets and all(vs == violation_sets[0] for vs in violation_sets):
+            status = "constraint_conflict"
+        else:
+            status = "failed"
+    else:
+        status = "failed"
+
+    last_verification = history[-1].verification if history else None
+
+    return CorrectionResult(
+        status=status,
+        response=history[-1].response if history else "",
+        attempts=len(history),
+        max_attempts=max_attempts,
+        history=history,
+        final_verification=last_verification,
+    )

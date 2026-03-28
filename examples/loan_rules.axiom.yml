@@ -1,0 +1,31 @@
+axiomguard: "0.3"
+domain: personal_loan_approval
+
+entities:
+  - name: applicant
+    aliases: ["ผู้กู้", "ลูกค้า", "ผู้สมัคร", "client"]
+
+rules:
+  - name: minimum_employment
+    type: dependency
+    when:
+      entity: applicant
+      relation: employment_months
+      value: "6"
+      value_type: int
+      operator: "<"
+    then:
+      require:
+        relation: approval_status
+        value: rejected
+    severity: error
+    message: "ผู้กู้ต้องมีอายุงานปัจจุบันไม่น้อยกว่า 6 เดือน"
+
+  - name: minimum_salary
+    type: range
+    entity: applicant
+    relation: salary_thb
+    value_type: int
+    min: 15000
+    severity: error
+    message: "ผู้กู้ต้องมีเงินเดือนตั้งแต่ 15,000 บาทขึ้นไป"

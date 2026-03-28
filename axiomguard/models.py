@@ -8,7 +8,7 @@ VerificationResult is a plain dataclass for engine output.
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Literal
+from typing import Literal, Optional
 
 from pydantic import BaseModel, Field
 
@@ -76,3 +76,51 @@ class VerificationResult:
     extraction_warnings: list[str] = field(default_factory=list)
     contradicted_claims: list[int] = field(default_factory=list)
     violated_rules: list[dict] = field(default_factory=list)
+
+
+# =====================================================================
+# Self-Correction Loop (v0.5.0)
+# =====================================================================
+
+
+@dataclass
+class CorrectionAttempt:
+    """Record of a single attempt in the correction loop.
+
+    Attributes:
+        attempt_number: 1-based attempt index.
+        response: The raw LLM response text for this attempt.
+        claims: Extracted claims from the response.
+        verification: Z3 verification result.
+        correction_prompt: The prompt used to request this attempt.
+                           None for attempt 1 (original generation).
+    """
+
+    attempt_number: int
+    response: str
+    claims: list[Claim] = field(default_factory=list)
+    verification: Optional[VerificationResult] = None
+    correction_prompt: Optional[str] = None
+
+
+@dataclass
+class CorrectionResult:
+    """Output of generate_with_guard().
+
+    Attributes:
+        status: "verified" (pass on 1st try), "corrected" (fixed on retry),
+                "failed" (all retries exhausted), "unverifiable" (no claims extracted),
+                "constraint_conflict" (same UNSAT on every attempt — rules may conflict).
+        response: The final response text (best available).
+        attempts: Total number of attempts made.
+        max_attempts: Configured limit (1 + max_retries).
+        history: Full attempt log for debugging / transparency.
+        final_verification: The last VerificationResult (None if unverifiable).
+    """
+
+    status: Literal["verified", "corrected", "failed", "unverifiable", "constraint_conflict"]
+    response: str
+    attempts: int
+    max_attempts: int
+    history: list[CorrectionAttempt] = field(default_factory=list)
+    final_verification: Optional[VerificationResult] = None
