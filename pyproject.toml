@@ -63,3 +63,6 @@ Issues = "https://github.com/witchwasin/AxiomGuard/issues"
 
 [tool.setuptools.packages.find]
 include = ["axiomguard*"]
+
+[tool.setuptools.package-data]
+axiomguard = ["py.typed"]

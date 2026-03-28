@@ -35,7 +35,7 @@ _passed = 0
 _total = 0
 
 
-def test(name: str, condition: bool, detail: str = ""):
+def _check(name: str, condition: bool, detail: str = ""):
     global _passed, _total
     _total += 1
     status = "PASS" if condition else "FAIL"
@@ -164,17 +164,17 @@ def test_explainable_proof():
         response_claims=[Claim(subject="patient", relation="takes", object="Aspirin")],
         axiom_claims=[Claim(subject="patient", relation="takes", object="Warfarin")],
     )
-    test("Drug interaction: is_hallucinating", result.is_hallucinating)
-    test("Custom message in reason",
+    _check("Drug interaction: is_hallucinating", result.is_hallucinating)
+    _check("Custom message in reason",
          "CRITICAL: Warfarin + Aspirin = bleeding risk." in result.reason,
          f"reason={result.reason}")
-    test("violated_rules populated",
+    _check("violated_rules populated",
          len(result.violated_rules) >= 1,
          f"got {len(result.violated_rules)} rule(s)")
-    test("violated_rules[0].name",
+    _check("violated_rules[0].name",
          result.violated_rules[0]["name"] == "Warfarin-Aspirin interaction",
          f"name={result.violated_rules[0]['name']}")
-    test("violated_rules[0].severity",
+    _check("violated_rules[0].severity",
          result.violated_rules[0]["severity"] == "error")
 
     # Blood type → custom message
@@ -182,7 +182,7 @@ def test_explainable_proof():
         response_claims=[Claim(subject="patient", relation="blood_type", object="B")],
         axiom_claims=[Claim(subject="patient", relation="blood_type", object="A")],
     )
-    test("Blood type: custom message",
+    _check("Blood type: custom message",
          "Patient cannot have two blood types." in result2.reason,
          f"reason={result2.reason}")
 
@@ -191,7 +191,7 @@ def test_explainable_proof():
         response_claims=[Claim(subject="patient", relation="treatment", object="chemotherapy")],
         axiom_claims=[Claim(subject="patient", relation="blood_test", object="pending")],
     )
-    test("Dependency: custom message",
+    _check("Dependency: custom message",
          "Cannot start chemotherapy" in result3.reason,
          f"reason={result3.reason}")
 
@@ -240,12 +240,12 @@ rules:
         response="The company is in Chiang Mai",
         axioms=["The company is in Bangkok"],
     )
-    test("verify_with_kb: text input → UNSAT",
+    _check("verify_with_kb: text input → UNSAT",
          result3.is_hallucinating,
          f"reason={result3.reason}")
-    test("verify_with_kb: custom message",
+    _check("verify_with_kb: custom message",
          "Company can only have one location." in result3.reason)
-    test("verify_with_kb: violated_rules",
+    _check("verify_with_kb: violated_rules",
          len(result3.violated_rules) >= 1)
 
     # No contradiction
@@ -253,9 +253,9 @@ rules:
         response="The company is in Bangkok",
         axioms=["The company is in Bangkok"],
     )
-    test("verify_with_kb: SAT",
+    _check("verify_with_kb: SAT",
          not result4.is_hallucinating)
-    test("verify_with_kb: no violated_rules on SAT",
+    _check("verify_with_kb: no violated_rules on SAT",
          result4.violated_rules == [])
 
     # No KB loaded → RuntimeError
@@ -264,9 +264,9 @@ rules:
     axiomguard.core._knowledge_base = None
     try:
         verify_with_kb("test", ["test"])
-        test("verify_with_kb: raises without KB", False)
+        _check("verify_with_kb: raises without KB", False)
     except RuntimeError:
-        test("verify_with_kb: raises without KB", True)
+        _check("verify_with_kb: raises without KB", True)
 
     # Restore
     set_knowledge_base(kb)
@@ -295,9 +295,9 @@ def test_multi_violation():
             Claim(subject="patient", relation="blood_type", object="A"),
         ],
     )
-    test("Multi-violation: is_hallucinating", result.is_hallucinating)
+    _check("Multi-violation: is_hallucinating", result.is_hallucinating)
     rule_names = [r["name"] for r in result.violated_rules]
-    test("Multi-violation: multiple rules in violated_rules",
+    _check("Multi-violation: multiple rules in violated_rules",
          len(result.violated_rules) >= 1,
          f"violated={rule_names}")
 
@@ -319,8 +319,8 @@ def test_severity():
         response_claims=[Claim(subject="patient", relation="takes", object="Aspirin")],
         axiom_claims=[Claim(subject="patient", relation="takes", object="Ibuprofen")],
     )
-    test("Warning severity: is_hallucinating", result.is_hallucinating)
-    test("Warning severity: rule severity is 'warning'",
+    _check("Warning severity: is_hallucinating", result.is_hallucinating)
+    _check("Warning severity: rule severity is 'warning'",
          any(r["severity"] == "warning" for r in result.violated_rules),
          f"severities={[r['severity'] for r in result.violated_rules]}")
 
@@ -342,9 +342,9 @@ def test_aliases_pipeline():
         response_claims=[Claim(subject="pt", relation="blood_type", object="B")],
         axiom_claims=[Claim(subject="ผู้ป่วย", relation="blood_type", object="A")],
     )
-    test("Thai alias: pt + ผู้ป่วย → both patient → UNSAT",
+    _check("Thai alias: pt + ผู้ป่วย → both patient → UNSAT",
          result.is_hallucinating)
-    test("Thai alias: violated rule name",
+    _check("Thai alias: violated rule name",
          any(r["name"] == "One blood type per patient" for r in result.violated_rules),
          f"rules={[r['name'] for r in result.violated_rules]}")
 
@@ -368,15 +368,15 @@ def test_multi_domain():
         response_claims=[Claim(subject="patient", relation="takes", object="Aspirin")],
         axiom_claims=[Claim(subject="patient", relation="takes", object="Warfarin")],
     )
-    test("Medical domain: drug interaction detected", r1.is_hallucinating)
+    _check("Medical domain: drug interaction detected", r1.is_hallucinating)
 
     # Legal rule fires
     r2 = kb.verify(
         response_claims=[Claim(subject="contract", relation="dispute_resolution", object="litigation")],
         axiom_claims=[Claim(subject="contract", relation="dispute_resolution", object="arbitration")],
     )
-    test("Legal domain: arb/lit exclusion detected", r2.is_hallucinating)
-    test("Legal domain: custom message",
+    _check("Legal domain: arb/lit exclusion detected", r2.is_hallucinating)
+    _check("Legal domain: custom message",
          "arbitration OR litigation" in r2.reason,
          f"reason={r2.reason}")
 
@@ -385,7 +385,7 @@ def test_multi_domain():
         response_claims=[Claim(subject="สัญญา", relation="governing_law", object="UK Law")],
         axiom_claims=[Claim(subject="contract", relation="governing_law", object="Thai Law")],
     )
-    test("Legal alias: สัญญา → contract → UNSAT",
+    _check("Legal alias: สัญญา → contract → UNSAT",
          r3.is_hallucinating)
 
 
@@ -406,8 +406,8 @@ def test_load_rules_file():
     if os.path.exists(fixture_path):
         load_rules(fixture_path)
         kb = axiomguard.get_knowledge_base()
-        test("load_rules: KB created", kb is not None)
-        test("load_rules: rules loaded", kb.rule_count >= 3,
+        _check("load_rules: KB created", kb is not None)
+        _check("load_rules: rules loaded", kb.rule_count >= 3,
              f"got {kb.rule_count}")
 
         # Verify via global KB
@@ -415,11 +415,11 @@ def test_load_rules_file():
             response_claims=[Claim(subject="patient", relation="takes", object="Aspirin")],
             axiom_claims=[Claim(subject="patient", relation="takes", object="Warfarin")],
         )
-        test("load_rules: verification works", result.is_hallucinating)
+        _check("load_rules: verification works", result.is_hallucinating)
     else:
-        test("load_rules: fixture missing", False, f"not found: {fixture_path}")
-        test("load_rules: rules loaded", False)
-        test("load_rules: verification works", False)
+        _check("load_rules: fixture missing", False, f"not found: {fixture_path}")
+        _check("load_rules: rules loaded", False)
+        _check("load_rules: verification works", False)
 
 
 # =====================================================================
@@ -437,12 +437,12 @@ def test_backward_compat():
         "The company is in Chiang Mai",
         ["The company is in Bangkok"],
     )
-    test("v0.2.0 verify() still works",
+    _check("v0.2.0 verify() still works",
          result.is_hallucinating,
          f"reason={result.reason}")
 
     # VerificationResult has violated_rules field (empty for old API)
-    test("violated_rules defaults to []",
+    _check("violated_rules defaults to []",
          result.violated_rules == [])
 
 
@@ -463,15 +463,15 @@ def test_proof_trace():
     )
 
     # All fields present
-    test("is_hallucinating", result.is_hallucinating is True)
-    test("reason contains custom message", "CRITICAL" in result.reason)
-    test("confidence is proven", result.confidence == "proven")
-    test("contradicted_claims has indices", len(result.contradicted_claims) >= 1)
-    test("violated_rules has rule metadata", len(result.violated_rules) >= 1)
-    test("violated_rules has name", "name" in result.violated_rules[0])
-    test("violated_rules has type", "type" in result.violated_rules[0])
-    test("violated_rules has severity", "severity" in result.violated_rules[0])
-    test("violated_rules has message", "message" in result.violated_rules[0])
+    _check("is_hallucinating", result.is_hallucinating is True)
+    _check("reason contains custom message", "CRITICAL" in result.reason)
+    _check("confidence is proven", result.confidence == "proven")
+    _check("contradicted_claims has indices", len(result.contradicted_claims) >= 1)
+    _check("violated_rules has rule metadata", len(result.violated_rules) >= 1)
+    _check("violated_rules has name", "name" in result.violated_rules[0])
+    _check("violated_rules has type", "type" in result.violated_rules[0])
+    _check("violated_rules has severity", "severity" in result.violated_rules[0])
+    _check("violated_rules has message", "message" in result.violated_rules[0])
 
     # Print the full proof trace for visual inspection
     print()

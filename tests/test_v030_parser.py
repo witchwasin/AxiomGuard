@@ -37,7 +37,7 @@ _passed = 0
 _total = 0
 
 
-def test(name: str, condition: bool, detail: str = ""):
+def _check(name: str, condition: bool, detail: str = ""):
     global _passed, _total
     _total += 1
     status = "PASS" if condition else "FAIL"
@@ -161,56 +161,56 @@ def test_parser():
 
     # Load from string
     ruleset = parser.load_string(MEDICAL_YAML)
-    test("Load YAML string", isinstance(ruleset, RuleSet))
-    test("Format version", ruleset.axiomguard == "0.3")
-    test("Domain", ruleset.domain == "healthcare")
-    test("Entity count", len(ruleset.entities) == 2,
+    _check("Load YAML string", isinstance(ruleset, RuleSet))
+    _check("Format version", ruleset.axiomguard == "0.3")
+    _check("Domain", ruleset.domain == "healthcare")
+    _check("Entity count", len(ruleset.entities) == 2,
          f"got {len(ruleset.entities)}")
-    test("Rule count", len(ruleset.rules) == 4,
+    _check("Rule count", len(ruleset.rules) == 4,
          f"got {len(ruleset.rules)}")
 
     # Rule type discrimination
-    test("Rule 0 is UniqueRule",
+    _check("Rule 0 is UniqueRule",
          isinstance(ruleset.rules[0], UniqueRule),
          f"type={type(ruleset.rules[0]).__name__}")
-    test("Rule 1 is ExclusionRule",
+    _check("Rule 1 is ExclusionRule",
          isinstance(ruleset.rules[1], ExclusionRule),
          f"type={type(ruleset.rules[1]).__name__}")
-    test("Rule 2 is DependencyRule",
+    _check("Rule 2 is DependencyRule",
          isinstance(ruleset.rules[2], DependencyRule),
          f"type={type(ruleset.rules[2]).__name__}")
 
     # Field values
     r0 = ruleset.rules[0]
-    test("UniqueRule fields",
+    _check("UniqueRule fields",
          r0.entity == "patient" and r0.relation == "blood_type")
 
     r1 = ruleset.rules[1]
-    test("ExclusionRule values",
+    _check("ExclusionRule values",
          r1.values == ["Warfarin", "Aspirin"] and r1.message == "CRITICAL: bleeding risk.")
 
     r2 = ruleset.rules[2]
-    test("DependencyRule when/then",
+    _check("DependencyRule when/then",
          r2.when.relation == "treatment" and r2.then.require.value == "completed")
 
     # Entity aliases
-    test("Entity aliases parsed",
+    _check("Entity aliases parsed",
          ruleset.entities[0].aliases == ["ผู้ป่วย", "pt"])
 
     # Load from file
     fixture_path = os.path.join(os.path.dirname(__file__), "fixtures", "medical.axiom.yml")
     if os.path.exists(fixture_path):
         ruleset_file = parser.load(fixture_path)
-        test("Load from file", len(ruleset_file.rules) >= 3)
+        _check("Load from file", len(ruleset_file.rules) >= 3)
     else:
-        test("Load from file (fixture missing)", False, f"not found: {fixture_path}")
+        _check("Load from file (fixture missing)", False, f"not found: {fixture_path}")
 
     # Schema rejection — missing required field
     try:
         parser.load_string('axiomguard: "0.3"\nrules: []')
-        test("Reject empty rules", False)
+        _check("Reject empty rules", False)
     except Exception:
-        test("Reject empty rules", True)
+        _check("Reject empty rules", True)
 
     # Schema rejection — unknown rule type
     try:
@@ -222,9 +222,9 @@ rules:
     entity: x
     relation: y
 """)
-        test("Reject unknown rule type", False)
+        _check("Reject unknown rule type", False)
     except Exception:
-        test("Reject unknown rule type", True)
+        _check("Reject unknown rule type", True)
 
     # Schema rejection — exclusion with <2 values
     try:
@@ -237,9 +237,9 @@ rules:
     relation: y
     values: [only_one]
 """)
-        test("Reject exclusion with <2 values", False)
+        _check("Reject exclusion with <2 values", False)
     except Exception:
-        test("Reject exclusion with <2 values", True)
+        _check("Reject exclusion with <2 values", True)
 
 
 # =====================================================================
@@ -255,14 +255,14 @@ def test_compilation():
     kb = KnowledgeBase()
     kb.load_string(MEDICAL_YAML)
 
-    test("Rules loaded", kb.rule_count == 4,
+    _check("Rules loaded", kb.rule_count == 4,
          f"got {kb.rule_count}")
-    test("Constraints compiled", kb.constraint_count >= 4,
+    _check("Constraints compiled", kb.constraint_count >= 4,
          f"got {kb.constraint_count} (exclusion generates pairwise)")
 
     # Load legal rules too
     kb.load_string(LEGAL_YAML)
-    test("Multiple files loaded", kb.rule_count == 6,
+    _check("Multiple files loaded", kb.rule_count == 6,
          f"got {kb.rule_count}")
 
 
@@ -284,16 +284,16 @@ def test_unique_rule():
         response_claims=[Claim(subject="patient", relation="blood_type", object="A")],
         axiom_claims=[Claim(subject="patient", relation="blood_type", object="A")],
     )
-    test("Same blood type: SAT", not result.is_hallucinating)
+    _check("Same blood type: SAT", not result.is_hallucinating)
 
     # Different blood types — contradiction
     result2 = kb.verify(
         response_claims=[Claim(subject="patient", relation="blood_type", object="B")],
         axiom_claims=[Claim(subject="patient", relation="blood_type", object="A")],
     )
-    test("Different blood types: UNSAT", result2.is_hallucinating,
+    _check("Different blood types: UNSAT", result2.is_hallucinating,
          f"reason={result2.reason}")
-    test("Confidence is proven", result2.confidence == "proven")
+    _check("Confidence is proven", result2.confidence == "proven")
 
 
 # =====================================================================
@@ -314,7 +314,7 @@ def test_exclusion_rule():
         response_claims=[Claim(subject="patient", relation="takes", object="Aspirin")],
         axiom_claims=[Claim(subject="patient", relation="takes", object="Warfarin")],
     )
-    test("Warfarin + Aspirin: UNSAT (drug interaction)",
+    _check("Warfarin + Aspirin: UNSAT (drug interaction)",
          result.is_hallucinating,
          f"reason={result.reason}")
 
@@ -323,7 +323,7 @@ def test_exclusion_rule():
         response_claims=[Claim(subject="patient", relation="takes", object="Paracetamol")],
         axiom_claims=[Claim(subject="patient", relation="takes", object="Warfarin")],
     )
-    test("Warfarin + Paracetamol: SAT (no interaction)",
+    _check("Warfarin + Paracetamol: SAT (no interaction)",
          not result2.is_hallucinating)
 
     # Same drug twice — no conflict
@@ -331,7 +331,7 @@ def test_exclusion_rule():
         response_claims=[Claim(subject="patient", relation="takes", object="Warfarin")],
         axiom_claims=[Claim(subject="patient", relation="takes", object="Warfarin")],
     )
-    test("Warfarin + Warfarin: SAT (same drug)", not result3.is_hallucinating)
+    _check("Warfarin + Warfarin: SAT (same drug)", not result3.is_hallucinating)
 
 
 # =====================================================================
@@ -352,14 +352,14 @@ def test_dependency_rule():
         response_claims=[Claim(subject="patient", relation="treatment", object="chemotherapy")],
         axiom_claims=[Claim(subject="patient", relation="blood_test", object="completed")],
     )
-    test("Chemo + blood test completed: SAT", not result.is_hallucinating)
+    _check("Chemo + blood test completed: SAT", not result.is_hallucinating)
 
     # Chemo WITHOUT blood test (or with pending) — UNSAT
     result2 = kb.verify(
         response_claims=[Claim(subject="patient", relation="treatment", object="chemotherapy")],
         axiom_claims=[Claim(subject="patient", relation="blood_test", object="pending")],
     )
-    test("Chemo + blood test pending: UNSAT",
+    _check("Chemo + blood test pending: UNSAT",
          result2.is_hallucinating,
          f"reason={result2.reason}")
 
@@ -368,7 +368,7 @@ def test_dependency_rule():
         response_claims=[Claim(subject="patient", relation="treatment", object="physical_therapy")],
         axiom_claims=[Claim(subject="patient", relation="blood_test", object="pending")],
     )
-    test("Physical therapy + pending test: SAT (rule doesn't apply)",
+    _check("Physical therapy + pending test: SAT (rule doesn't apply)",
          not result3.is_hallucinating)
 
 
@@ -387,20 +387,20 @@ def test_entity_aliases():
 
     # Thai alias → canonical entity
     canon, hit = kb.resolver.resolve("ผู้ป่วย")
-    test("ผู้ป่วย → patient", canon == "patient" and hit)
+    _check("ผู้ป่วย → patient", canon == "patient" and hit)
 
     canon2, hit2 = kb.resolver.resolve("pt")
-    test("pt → patient", canon2 == "patient" and hit2)
+    _check("pt → patient", canon2 == "patient" and hit2)
 
     canon3, hit3 = kb.resolver.resolve("ยา")
-    test("ยา → drug", canon3 == "drug" and hit3)
+    _check("ยา → drug", canon3 == "drug" and hit3)
 
     # Verify with alias: "pt" should match "patient" in Z3
     result = kb.verify(
         response_claims=[Claim(subject="pt", relation="blood_type", object="B")],
         axiom_claims=[Claim(subject="ผู้ป่วย", relation="blood_type", object="A")],
     )
-    test("Alias resolution in verify: pt + ผู้ป่วย both → patient",
+    _check("Alias resolution in verify: pt + ผู้ป่วย both → patient",
          result.is_hallucinating,
          f"reason={result.reason}")
 
@@ -419,7 +419,7 @@ def test_inline_examples():
     kb.load_string(YAML_WITH_EXAMPLES)
 
     p, t, failures = kb.run_examples()
-    test(f"Inline examples: {p}/{t} passed",
+    _check(f"Inline examples: {p}/{t} passed",
          p == t and t == 2,
          f"failures={failures}" if failures else "")
 
@@ -432,7 +432,7 @@ def test_inline_examples():
         kb2 = KnowledgeBase()
         kb2.load(fixture_path)
         p2, t2, failures2 = kb2.run_examples()
-        test(f"Fixture loads + runs examples ({p2}/{t2} with mock backend)",
+        _check(f"Fixture loads + runs examples ({p2}/{t2} with mock backend)",
              t2 > 0,
              f"{t2 - p2} failures expected — mock backend cannot parse domain-specific language")
 
@@ -456,22 +456,22 @@ def test_multi_domain():
         response_claims=[Claim(subject="patient", relation="takes", object="Aspirin")],
         axiom_claims=[Claim(subject="patient", relation="takes", object="Warfarin")],
     )
-    test("Medical rules active after multi-load", result.is_hallucinating)
+    _check("Medical rules active after multi-load", result.is_hallucinating)
 
     # Legal rules also work
     result2 = kb.verify(
         response_claims=[Claim(subject="contract", relation="governing_law", object="UK Law")],
         axiom_claims=[Claim(subject="contract", relation="governing_law", object="Thai Law")],
     )
-    test("Legal rules active after multi-load", result2.is_hallucinating,
+    _check("Legal rules active after multi-load", result2.is_hallucinating,
          f"reason={result2.reason}")
 
     # Legal entity alias
     canon, hit = kb.resolver.resolve("สัญญา")
-    test("สัญญา → contract (from legal YAML)", canon == "contract" and hit)
+    _check("สัญญา → contract (from legal YAML)", canon == "contract" and hit)
 
     # Cross-domain: total rules
-    test(f"Total rules: {kb.rule_count}", kb.rule_count == 6)
+    _check(f"Total rules: {kb.rule_count}", kb.rule_count == 6)
 
 
 # =====================================================================
@@ -491,7 +491,7 @@ def test_edge_cases():
     result = kb.verify(
         response_claims=[Claim(subject="patient", relation="blood_type", object="A")],
     )
-    test("Verify with no axiom_claims: SAT", not result.is_hallucinating)
+    _check("Verify with no axiom_claims: SAT", not result.is_hallucinating)
 
     # N-way exclusion (3 values)
     kb2 = KnowledgeBase()
@@ -510,13 +510,13 @@ rules:
         response_claims=[Claim(subject="x", relation="status", object="active")],
         axiom_claims=[Claim(subject="x", relation="status", object="terminated")],
     )
-    test("3-way exclusion: active + terminated = UNSAT", result2.is_hallucinating)
+    _check("3-way exclusion: active + terminated = UNSAT", result2.is_hallucinating)
 
     result3 = kb2.verify(
         response_claims=[Claim(subject="x", relation="status", object="active")],
         axiom_claims=[Claim(subject="x", relation="status", object="suspended")],
     )
-    test("3-way exclusion: active + suspended = UNSAT", result3.is_hallucinating)
+    _check("3-way exclusion: active + suspended = UNSAT", result3.is_hallucinating)
 
     # Contradicted claims index
     result4 = kb2.verify(
@@ -526,7 +526,7 @@ rules:
         ],
         axiom_claims=[Claim(subject="x", relation="status", object="terminated")],
     )
-    test("Contradicted index pinpoints claim[1]",
+    _check("Contradicted index pinpoints claim[1]",
          result4.is_hallucinating and 1 in result4.contradicted_claims,
          f"contradicted={result4.contradicted_claims}")
 

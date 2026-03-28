@@ -43,7 +43,7 @@ _passed = 0
 _total = 0
 
 
-def test(name: str, condition: bool, detail: str = ""):
+def _check(name: str, condition: bool, detail: str = ""):
     global _passed, _total
     _total += 1
     status = "PASS" if condition else "FAIL"
@@ -83,35 +83,35 @@ def test_models():
 
     # Valid claim
     c = Claim(subject="company", relation="location", object="Bangkok")
-    test("Create valid Claim", c.subject == "company")
+    _check("Create valid Claim", c.subject == "company")
 
     # Negated claim
     cn = Claim(subject="Paris", relation="capital", object="Germany", negated=True)
-    test("Create negated Claim", cn.negated is True)
+    _check("Create negated Claim", cn.negated is True)
 
     # Dedup key
     c1 = Claim(subject="A", relation="r", object="B")
     c2 = Claim(subject="B", relation="r", object="A")
-    test("as_key() is order-independent", c1.as_key() == c2.as_key(),
+    _check("as_key() is order-independent", c1.as_key() == c2.as_key(),
          f"{c1.as_key()} == {c2.as_key()}")
 
     # Schema rejects empty subject
     try:
         Claim(subject="", relation="r", object="o")
-        test("Reject empty subject", False)
+        _check("Reject empty subject", False)
     except Exception:
-        test("Reject empty subject", True)
+        _check("Reject empty subject", True)
 
     # ExtractionResult rejects empty claims list
     try:
         ExtractionResult(claims=[])
-        test("Reject empty claims list", False)
+        _check("Reject empty claims list", False)
     except Exception:
-        test("Reject empty claims list", True)
+        _check("Reject empty claims list", True)
 
     # VerificationResult backward compat
     vr = VerificationResult(is_hallucinating=True, reason="test")
-    test("VerificationResult backward compat",
+    _check("VerificationResult backward compat",
          vr.confidence == "proven" and vr.extraction_warnings == [])
 
 
@@ -129,27 +129,27 @@ def test_resolver():
 
     # Known aliases
     canon, hit = r.resolve("BKK")
-    test("BKK → Bangkok", canon == "Bangkok" and hit)
+    _check("BKK → Bangkok", canon == "Bangkok" and hit)
 
     canon, hit = r.resolve("กทม")
-    test("กทม → Bangkok", canon == "Bangkok" and hit)
+    _check("กทม → Bangkok", canon == "Bangkok" and hit)
 
     canon, hit = r.resolve("headquarters")
-    test("headquarters → company", canon == "company" and hit)
+    _check("headquarters → company", canon == "company" and hit)
 
     # Unknown entity stays distinct (conservative)
     canon, hit = r.resolve("Timbuktu")
-    test("Unknown stays distinct", canon == "Timbuktu" and not hit)
+    _check("Unknown stays distinct", canon == "Timbuktu" and not hit)
 
     # add_aliases at runtime
     r.add_aliases({"สวนหลวง": "Suanluang Rama IX"})
     canon, hit = r.resolve("สวนหลวง")
-    test("add_aliases works", canon == "Suanluang Rama IX" and hit)
+    _check("add_aliases works", canon == "Suanluang Rama IX" and hit)
 
     # resolve_claim transforms subject + object
     c = Claim(subject="HQ", relation="location", object="BKK")
     resolved, warnings = r.resolve_claim(c)
-    test("resolve_claim: HQ→company, BKK→Bangkok",
+    _check("resolve_claim: HQ→company, BKK→Bangkok",
          resolved.subject == "company" and resolved.object == "Bangkok",
          f"subject={resolved.subject}, object={resolved.object}")
 
@@ -167,21 +167,21 @@ def test_validation_pipeline():
     # Stage 1: Parse — markdown fences
     raw_md = '```json\n{"claims": [{"subject": "X", "relation": "r", "object": "Y", "negated": false}]}\n```'
     data = parse_raw_json(raw_md)
-    test("Parse: strip markdown fences", "claims" in data)
+    _check("Parse: strip markdown fences", "claims" in data)
 
     # Stage 1: Parse — trailing commas
     raw_comma = '{"claims": [{"subject": "X", "relation": "r", "object": "Y", "negated": false,},]}'
     data2 = parse_raw_json(raw_comma)
-    test("Parse: fix trailing commas", len(data2["claims"]) == 1)
+    _check("Parse: fix trailing commas", len(data2["claims"]) == 1)
 
     # Stage 2: Schema validation
     extraction = validate_schema(data)
-    test("Schema: valid ExtractionResult", len(extraction.claims) == 1)
+    _check("Schema: valid ExtractionResult", len(extraction.claims) == 1)
 
     # Stage 3: Semantic — negation warning
     claims_no_neg = [Claim(subject="Paris", relation="capital", object="Germany")]
     filtered, warnings = check_semantics(claims_no_neg, "Paris is NOT the capital of Germany")
-    test("Semantic: negation warning fires",
+    _check("Semantic: negation warning fires",
          any("negation" in w.lower() for w in warnings),
          f"warnings={warnings[0][:60]}..." if warnings else "NO WARNING")
 
@@ -191,7 +191,7 @@ def test_validation_pipeline():
         Claim(subject="A", relation="r", object="B"),
     ]
     filtered, warnings = check_semantics(dupes, "")
-    test("Semantic: dedup removes duplicates",
+    _check("Semantic: dedup removes duplicates",
          len(filtered) == 1 and any("duplicate" in w.lower() for w in warnings))
 
     # Stage 3: Semantic — non-grounded filtered
@@ -200,19 +200,19 @@ def test_validation_pipeline():
         object="a very large metropolitan city located somewhere in the remote northern mountainous region of Southeast Asia"
     )]
     filtered, warnings = check_semantics(verbose, "")
-    test("Semantic: non-grounded object filtered",
+    _check("Semantic: non-grounded object filtered",
          len(filtered) == 0 and any("non-grounded" in w.lower() for w in warnings))
 
     # Stage 3: Semantic — compound relation filtered
     compound = [Claim(subject="X", relation="location and founder", object="Y")]
     filtered, warnings = check_semantics(compound, "")
-    test("Semantic: compound relation filtered",
+    _check("Semantic: compound relation filtered",
          len(filtered) == 0 and any("non-atomic" in w.lower() for w in warnings))
 
     # Combined pipeline
     raw_full = '{"claims": [{"subject": "company", "relation": "location", "object": "Bangkok", "negated": false}]}'
     claims, warnings = validate_and_extract(raw_full, "The company is in Bangkok")
-    test("Full pipeline: parse → schema → semantic",
+    _check("Full pipeline: parse → schema → semantic",
          len(claims) == 1 and claims[0].subject == "company")
 
 
@@ -230,13 +230,13 @@ def test_z3_engine():
     axioms = [Claim(subject="company", relation="location", object="Bangkok")]
     response = [Claim(subject="company", relation="location", object="Chiang Mai")]
     h, reason, indices = check_claims(axioms, response)
-    test("Single contradiction detected", h and 0 in indices,
+    _check("Single contradiction detected", h and 0 in indices,
          f"indices={indices}")
 
     # No contradiction
     response_ok = [Claim(subject="company", relation="location", object="Bangkok")]
     h2, _, indices2 = check_claims(axioms, response_ok)
-    test("No contradiction: SAT", not h2 and indices2 == [])
+    _check("No contradiction: SAT", not h2 and indices2 == [])
 
     # Multi-claim: pinpoint the bad one
     response_multi = [
@@ -244,14 +244,14 @@ def test_z3_engine():
         Claim(subject="company", relation="location", object="Phuket"),
     ]
     h3, reason3, indices3 = check_claims(axioms, response_multi)
-    test("Multi-claim: pinpoints claim[1]", h3 and 1 in indices3,
+    _check("Multi-claim: pinpoints claim[1]", h3 and 1 in indices3,
          f"indices={indices3}, reason={reason3}")
 
     # Negated claim: "NOT capital of Germany" doesn't contradict "capital of France"
     ax_cap = [Claim(subject="Paris", relation="capital", object="France")]
     resp_neg = [Claim(subject="Paris", relation="capital", object="Germany", negated=True)]
     h4, _, _ = check_claims(ax_cap, resp_neg)
-    test("Negated claim: no false contradiction", not h4)
+    _check("Negated claim: no false contradiction", not h4)
 
     # Multiple axioms + multiple contradictions
     axioms_big = [
@@ -265,20 +265,20 @@ def test_z3_engine():
         Claim(subject="product", relation="identity", object="AxiomGuard"),
     ]
     h5, reason5, indices5 = check_claims(axioms_big, response_big)
-    test("Multi-axiom: detects contradiction(s)", h5 and len(indices5) >= 1,
+    _check("Multi-axiom: detects contradiction(s)", h5 and len(indices5) >= 1,
          f"indices={indices5}")
 
     # Non-exclusive relation: no contradiction
     ax_attr = [Claim(subject="company", relation="attribute", object="innovative")]
     resp_attr = [Claim(subject="company", relation="attribute", object="profitable")]
     h6, _, _ = check_claims(ax_attr, resp_attr)
-    test("Non-exclusive relation: both attributes coexist", not h6)
+    _check("Non-exclusive relation: both attributes coexist", not h6)
 
     # Timeout: 50 axioms still completes
     ax_many = [Claim(subject=f"s{i}", relation="location", object=f"city{i}") for i in range(50)]
     resp_to = [Claim(subject="s0", relation="location", object="wrong")]
     h7, _, _ = check_claims(ax_many, resp_to, timeout_ms=2000)
-    test("50 axioms within timeout", h7)
+    _check("50 axioms within timeout", h7)
 
 
 # =====================================================================
@@ -295,24 +295,24 @@ def test_end_to_end():
 
     # Basic contradiction
     r = verify("The company is in Chiang Mai", ["The company is in Bangkok"])
-    test("E2E: contradiction detected",
+    _check("E2E: contradiction detected",
          r.is_hallucinating and r.confidence == "proven",
          f"confidence={r.confidence}, contradicted={r.contradicted_claims}")
 
     # No contradiction
     r2 = verify("The company is in Bangkok", ["The company is in Bangkok"])
-    test("E2E: no contradiction",
+    _check("E2E: no contradiction",
          not r2.is_hallucinating and r2.confidence == "proven")
 
     # Entity resolution via verify: HQ→company, BKK→Bangkok
     r3 = verify("HQ is in BKK", ["The company is in Bangkok"])
-    test("E2E: entity resolution (HQ=company, BKK=Bangkok) → no contradiction",
+    _check("E2E: entity resolution (HQ=company, BKK=Bangkok) → no contradiction",
          not r3.is_hallucinating,
          f"hallucinating={r3.is_hallucinating}")
 
     # Entity resolution: BKK vs Chiang Mai → contradiction
     r4 = verify("HQ is in Chiang Mai", ["The company is in Bangkok"])
-    test("E2E: entity resolution + contradiction",
+    _check("E2E: entity resolution + contradiction",
          r4.is_hallucinating,
          f"reason={r4.reason}")
 
@@ -321,13 +321,13 @@ def test_end_to_end():
         "The company is in Phuket",
         ["The company is in Bangkok", "The CEO is Somchai"],
     )
-    test("E2E: multi-axiom, pinpoints contradiction",
+    _check("E2E: multi-axiom, pinpoints contradiction",
          r5.is_hallucinating and 0 in r5.contradicted_claims,
          f"contradicted={r5.contradicted_claims}")
 
     # extract_claims resolves entities
     claims = extract_claims("HQ is in BKK")
-    test("extract_claims: HQ→company, BKK→Bangkok",
+    _check("extract_claims: HQ→company, BKK→Bangkok",
          claims[0].subject == "company" and claims[0].object == "Bangkok",
          f"subject={claims[0].subject}, object={claims[0].object}")
 
@@ -347,7 +347,7 @@ def test_backward_compat():
     # translate_to_logic returns dict
     from axiomguard import translate_to_logic
     triple = translate_to_logic("The company is in Bangkok")
-    test("translate_to_logic returns dict",
+    _check("translate_to_logic returns dict",
          isinstance(triple, dict) and "subject" in triple and "relation" in triple)
 
     # check_contradiction_z3 (old signature)
@@ -356,13 +356,13 @@ def test_backward_compat():
         [{"subject": "company", "relation": "location", "object": "Bangkok"}],
         {"subject": "company", "relation": "location", "object": "Chiang Mai"},
     )
-    test("check_contradiction_z3 (dict API)", h,
+    _check("check_contradiction_z3 (dict API)", h,
          f"reason={reason}")
 
     # parse_response (old function)
     from axiomguard.backends import parse_response
     d = parse_response('{"subject": "X", "relation": "r", "object": "Y"}')
-    test("parse_response (v0.1.0 compat)", d["subject"] == "X")
+    _check("parse_response (v0.1.0 compat)", d["subject"] == "X")
 
     # set_llm_backend with dict-returning function (auto-wrap)
     def old_backend(text: str) -> dict:
@@ -370,7 +370,7 @@ def test_backward_compat():
 
     set_llm_backend(old_backend)
     r = verify("test", ["test"])
-    test("set_llm_backend with dict-returning backend",
+    _check("set_llm_backend with dict-returning backend",
          isinstance(r, VerificationResult))
 
     # Restore mock

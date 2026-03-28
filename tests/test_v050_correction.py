@@ -41,7 +41,7 @@ _passed = 0
 _total = 0
 
 
-def test(name, condition, detail=""):
+def _check(name, condition, detail=""):
     global _passed, _total
     _total += 1
     s = "PASS" if condition else "FAIL"
@@ -140,8 +140,8 @@ def test_models():
         verification=VerificationResult(is_hallucinating=True, reason="UNSAT"),
         correction_prompt=None,
     )
-    test("CorrectionAttempt creation", attempt.attempt_number == 1)
-    test("CorrectionAttempt.correction_prompt None for attempt 1",
+    _check("CorrectionAttempt creation", attempt.attempt_number == 1)
+    _check("CorrectionAttempt.correction_prompt None for attempt 1",
          attempt.correction_prompt is None)
 
     # CorrectionResult — verified
@@ -153,8 +153,8 @@ def test_models():
         history=[attempt],
         final_verification=VerificationResult(is_hallucinating=False, reason="SAT"),
     )
-    test("CorrectionResult status='verified'", result.status == "verified")
-    test("CorrectionResult.attempts=1", result.attempts == 1)
+    _check("CorrectionResult status='verified'", result.status == "verified")
+    _check("CorrectionResult.attempts=1", result.attempts == 1)
 
     # CorrectionResult — corrected
     result2 = CorrectionResult(
@@ -163,7 +163,7 @@ def test_models():
         attempts=2,
         max_attempts=3,
     )
-    test("CorrectionResult status='corrected'", result2.status == "corrected")
+    _check("CorrectionResult status='corrected'", result2.status == "corrected")
 
     # CorrectionResult — failed
     result3 = CorrectionResult(
@@ -172,7 +172,7 @@ def test_models():
         attempts=3,
         max_attempts=3,
     )
-    test("CorrectionResult status='failed'", result3.status == "failed")
+    _check("CorrectionResult status='failed'", result3.status == "failed")
 
     # CorrectionResult — constraint_conflict
     result4 = CorrectionResult(
@@ -181,7 +181,7 @@ def test_models():
         attempts=3,
         max_attempts=3,
     )
-    test("CorrectionResult status='constraint_conflict'",
+    _check("CorrectionResult status='constraint_conflict'",
          result4.status == "constraint_conflict")
 
     # CorrectionResult — unverifiable
@@ -191,7 +191,7 @@ def test_models():
         attempts=1,
         max_attempts=3,
     )
-    test("CorrectionResult status='unverifiable'",
+    _check("CorrectionResult status='unverifiable'",
          result5.status == "unverifiable")
 
 
@@ -215,34 +215,34 @@ def test_drug_interaction_prompt():
     )
 
     # Contains key sections
-    test("Contains 'WHAT WENT WRONG'", "WHAT WENT WRONG" in prompt)
-    test("Contains 'RULES THAT WERE VIOLATED'", "RULES THAT WERE VIOLATED" in prompt)
-    test("Contains 'WHAT WAS CORRECT'", "WHAT WAS CORRECT" in prompt)
-    test("Contains 'YOUR TASK'", "YOUR TASK" in prompt)
-    test("Contains original prompt",
+    _check("Contains 'WHAT WENT WRONG'", "WHAT WENT WRONG" in prompt)
+    _check("Contains 'RULES THAT WERE VIOLATED'", "RULES THAT WERE VIOLATED" in prompt)
+    _check("Contains 'WHAT WAS CORRECT'", "WHAT WAS CORRECT" in prompt)
+    _check("Contains 'YOUR TASK'", "YOUR TASK" in prompt)
+    _check("Contains original prompt",
          "What medications is Patient John taking?" in prompt)
 
     # Violation details — specific claim
-    test("Names the wrong claim: 'takes Aspirin'",
+    _check("Names the wrong claim: 'takes Aspirin'",
          "takes Aspirin" in prompt,
          f"checking for 'takes Aspirin' in prompt")
-    test("Marks it as WRONG",
+    _check("Marks it as WRONG",
          "WRONG" in prompt)
 
     # YAML custom message
-    test("Contains custom rule message: 'bleeding risk'",
+    _check("Contains custom rule message: 'bleeding risk'",
          "bleeding risk" in prompt)
-    test("Contains rule name: 'Warfarin-Aspirin interaction'",
+    _check("Contains rule name: 'Warfarin-Aspirin interaction'",
          "Warfarin-Aspirin interaction" in prompt)
-    test("Contains severity: [ERROR]",
+    _check("Contains severity: [ERROR]",
          "[ERROR]" in prompt)
 
     # Preserve section — Warfarin should be preserved
-    test("Preserve section contains Warfarin",
+    _check("Preserve section contains Warfarin",
          "takes Warfarin" in prompt)
 
     # Does NOT contain apology instruction
-    test("Contains 'Do NOT apologize'",
+    _check("Contains 'Do NOT apologize'",
          "Do NOT apologize" in prompt)
 
 
@@ -259,17 +259,17 @@ def test_violation_details():
     # Single violation
     claims, verification = make_drug_interaction_result()
     details = _build_violation_details(claims, verification)
-    test("Single violation: mentions Aspirin",
+    _check("Single violation: mentions Aspirin",
          "Aspirin" in details)
-    test("Single violation: includes rule message",
+    _check("Single violation: includes rule message",
          "bleeding risk" in details)
 
     # Multi violation
     claims2, verification2 = make_multi_violation_result()
     details2 = _build_violation_details(claims2, verification2)
-    test("Multi violation: mentions blood_type B",
+    _check("Multi violation: mentions blood_type B",
          "blood_type" in details2 and "B" in details2)
-    test("Multi violation: mentions Aspirin",
+    _check("Multi violation: mentions Aspirin",
          "Aspirin" in details2)
 
     # Negated claim
@@ -281,7 +281,7 @@ def test_violation_details():
         violated_rules=[],
     )
     neg_details = _build_violation_details(neg_claims, neg_ver)
-    test("Negated claim: shows NOT",
+    _check("Negated claim: shows NOT",
          "NOT" in neg_details)
 
 
@@ -297,20 +297,20 @@ def test_rule_list():
 
     _, verification = make_drug_interaction_result()
     rules = _build_rule_list(verification)
-    test("Rule list: numbered", rules.startswith("1."))
-    test("Rule list: severity tag", "[ERROR]" in rules)
-    test("Rule list: rule name", "Warfarin-Aspirin interaction" in rules)
-    test("Rule list: custom message", "bleeding risk" in rules)
+    _check("Rule list: numbered", rules.startswith("1."))
+    _check("Rule list: severity tag", "[ERROR]" in rules)
+    _check("Rule list: rule name", "Warfarin-Aspirin interaction" in rules)
+    _check("Rule list: custom message", "bleeding risk" in rules)
 
     # Multi rules
     _, verification2 = make_multi_violation_result()
     rules2 = _build_rule_list(verification2)
-    test("Multi rules: has rule 1 and 2", "1." in rules2 and "2." in rules2)
+    _check("Multi rules: has rule 1 and 2", "1." in rules2 and "2." in rules2)
 
     # No rules fallback
     _, no_rules_ver = make_no_rules_result()
     rules3 = _build_rule_list(no_rules_ver)
-    test("No rules: fallback to reason", "cannot be both" in rules3)
+    _check("No rules: fallback to reason", "cannot be both" in rules3)
 
 
 # =====================================================================
@@ -327,15 +327,15 @@ def test_verified_claims():
     preserved = _build_verified_claims(claims, verification)
 
     # claim[0] = Warfarin (not contradicted) should be preserved
-    test("Warfarin in preserve list", "Warfarin" in preserved)
+    _check("Warfarin in preserve list", "Warfarin" in preserved)
     # claim[1] = Aspirin (contradicted) should NOT be in preserve list
-    test("Aspirin NOT in preserve list", "Aspirin" not in preserved)
+    _check("Aspirin NOT in preserve list", "Aspirin" not in preserved)
 
     # Multi violation — only claim[2] preserved
     claims2, verification2 = make_multi_violation_result()
     preserved2 = _build_verified_claims(claims2, verification2)
-    test("Multi: assessment preserved", "assessment" in preserved2)
-    test("Multi: blood_type NOT preserved", "blood_type" not in preserved2)
+    _check("Multi: assessment preserved", "assessment" in preserved2)
+    _check("Multi: blood_type NOT preserved", "blood_type" not in preserved2)
 
     # All contradicted
     all_bad_ver = VerificationResult(
@@ -347,7 +347,7 @@ def test_verified_claims():
         [Claim(subject="x", relation="r", object="a")],
         all_bad_ver,
     )
-    test("All contradicted: regenerate message",
+    _check("All contradicted: regenerate message",
          "regenerate entirely" in all_bad.lower())
 
 
@@ -372,7 +372,7 @@ def test_escalation():
         attempt_number=1,
         max_attempts=3,
     )
-    test("Attempt 1: uses normal template",
+    _check("Attempt 1: uses normal template",
          "WHAT WENT WRONG" in normal and "FINAL ATTEMPT" not in normal)
 
     # Final attempt (attempt 2 of 3 → uses escalation)
@@ -384,13 +384,13 @@ def test_escalation():
         attempt_number=2,
         max_attempts=3,
     )
-    test("Final attempt: uses escalation template",
+    _check("Final attempt: uses escalation template",
          "FINAL ATTEMPT" in final)
-    test("Final attempt: mentions previous attempts",
+    _check("Final attempt: mentions previous attempts",
          "previous 2 attempts" in final)
-    test("Final attempt: contains MANDATORY CONSTRAINTS",
+    _check("Final attempt: contains MANDATORY CONSTRAINTS",
          "MANDATORY CONSTRAINTS" in final)
-    test("Final attempt: contains original prompt",
+    _check("Final attempt: contains original prompt",
          "test question" in final)
 
 
@@ -417,7 +417,7 @@ def test_edge_cases():
         claims=[],
         verification=empty_ver,
     )
-    test("Empty claims: still generates prompt", len(prompt) > 50)
+    _check("Empty claims: still generates prompt", len(prompt) > 50)
 
     # Contradicted index out of bounds
     oob_ver = VerificationResult(
@@ -432,7 +432,7 @@ def test_edge_cases():
         claims=[Claim(subject="x", relation="r", object="a")],
         verification=oob_ver,
     )
-    test("OOB index: handled gracefully", "index 99" in prompt2)
+    _check("OOB index: handled gracefully", "index 99" in prompt2)
 
     # Rule with empty message
     empty_msg_ver = VerificationResult(
@@ -447,7 +447,7 @@ def test_edge_cases():
         claims=[Claim(subject="x", relation="r", object="a")],
         verification=empty_msg_ver,
     )
-    test("Empty rule message: fallback to reason", "x.r conflict" in prompt3)
+    _check("Empty rule message: fallback to reason", "x.r conflict" in prompt3)
 
 
 # =====================================================================

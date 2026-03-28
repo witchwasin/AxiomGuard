@@ -32,7 +32,7 @@ _passed = 0
 _total = 0
 
 
-def test(name, condition, detail=""):
+def _check(name, condition, detail=""):
     global _passed, _total
     _total += 1
     s = "PASS" if condition else "FAIL"
@@ -156,44 +156,44 @@ def test_numeric_rules():
         [Claim(subject="patient", relation="age", object="70")],
         [Claim(subject="patient", relation="assessment", object="geriatric")],
     )
-    test("Int: age 70 + geriatric = SAT", not r.is_hallucinating)
+    _check("Int: age 70 + geriatric = SAT", not r.is_hallucinating)
 
     # Int: age > 65 + standard → UNSAT
     r = kb.verify(
         [Claim(subject="patient", relation="age", object="70")],
         [Claim(subject="patient", relation="assessment", object="standard")],
     )
-    test("Int: age 70 + standard = UNSAT", r.is_hallucinating)
-    test("Int: custom message", "over 65" in r.reason)
+    _check("Int: age 70 + standard = UNSAT", r.is_hallucinating)
+    _check("Int: custom message", "over 65" in r.reason)
 
     # Int: age < 65 → rule doesn't fire
     r = kb.verify(
         [Claim(subject="patient", relation="age", object="30")],
         [Claim(subject="patient", relation="assessment", object="standard")],
     )
-    test("Int: age 30 = SAT (not triggered)", not r.is_hallucinating)
+    _check("Int: age 30 = SAT (not triggered)", not r.is_hallucinating)
 
     # Float: volume 5.0ml → SAT (within range)
     r = kb.verify([Claim(subject="injection", relation="volume_ml", object="5.0")])
-    test("Float: 5.0ml = SAT (within range)", not r.is_hallucinating)
+    _check("Float: 5.0ml = SAT (within range)", not r.is_hallucinating)
 
     # Float: volume 15.0ml → UNSAT
     r = kb.verify([Claim(subject="injection", relation="volume_ml", object="15.0")])
-    test("Float: 15.0ml = UNSAT (exceeds 10.0)", r.is_hallucinating)
+    _check("Float: 15.0ml = UNSAT (exceeds 10.0)", r.is_hallucinating)
 
     # Date: expired → UNSAT
     r = kb.verify(
         [Claim(subject="certificate", relation="expiry_date", object="2025-06-15")],
         [Claim(subject="certificate", relation="cert_status", object="active")],
     )
-    test("Date: 2025-06-15 expired = UNSAT", r.is_hallucinating)
+    _check("Date: 2025-06-15 expired = UNSAT", r.is_hallucinating)
 
     # Date: valid → SAT
     r = kb.verify(
         [Claim(subject="certificate", relation="expiry_date", object="2027-01-01")],
         [Claim(subject="certificate", relation="cert_status", object="active")],
     )
-    test("Date: 2027-01-01 valid = SAT", not r.is_hallucinating)
+    _check("Date: 2027-01-01 valid = SAT", not r.is_hallucinating)
 
 
 # =====================================================================
@@ -219,8 +219,8 @@ rules:
     min: 0
     max: 100
 """)
-    test("RangeRule parsed", isinstance(rs.rules[0], RangeRule))
-    test("min=0, max=100", rs.rules[0].min == 0 and rs.rules[0].max == 100)
+    _check("RangeRule parsed", isinstance(rs.rules[0], RangeRule))
+    _check("min=0, max=100", rs.rules[0].min == 0 and rs.rules[0].max == 100)
 
     kb = KnowledgeBase()
     kb.load_string("""\
@@ -238,13 +238,13 @@ rules:
 """)
 
     r = kb.verify([Claim(subject="exam", relation="score", object="85")])
-    test("Score 85: SAT", not r.is_hallucinating)
+    _check("Score 85: SAT", not r.is_hallucinating)
 
     r = kb.verify([Claim(subject="exam", relation="score", object="150")])
-    test("Score 150: UNSAT", r.is_hallucinating)
+    _check("Score 150: UNSAT", r.is_hallucinating)
 
     r = kb.verify([Claim(subject="exam", relation="score", object="-5")])
-    test("Score -5: UNSAT", r.is_hallucinating)
+    _check("Score -5: UNSAT", r.is_hallucinating)
 
 
 # =====================================================================
@@ -261,12 +261,12 @@ def test_axiom_relations():
     kb.load_string(MEDICAL_NUMERIC_YAML)
 
     rels = kb.axiom_relations()
-    test("Contains 'age'", "age" in rels)
-    test("Contains 'takes'", "takes" in rels)
-    test("Contains 'blood_type'", "blood_type" in rels)
-    test("Contains 'dosage_mg'", "dosage_mg" in rels)
-    test("Does NOT contain 'random'", "random" not in rels)
-    test(f"Total relations: {len(rels)}", len(rels) >= 6, f"rels={rels}")
+    _check("Contains 'age'", "age" in rels)
+    _check("Contains 'takes'", "takes" in rels)
+    _check("Contains 'blood_type'", "blood_type" in rels)
+    _check("Contains 'dosage_mg'", "dosage_mg" in rels)
+    _check("Does NOT contain 'random'", "random" not in rels)
+    _check(f"Total relations: {len(rels)}", len(rels) >= 6, f"rels={rels}")
 
 
 # =====================================================================
@@ -291,16 +291,16 @@ def test_verify_chunks():
 
     # Annotate mode
     result = verify_chunks(list(chunks), kb=kb, mode="annotate", axiom_claims=axioms)
-    test("Annotate: all 3 returned", len(result) == 3)
-    test("Annotate: _axiomguard in metadata",
+    _check("Annotate: all 3 returned", len(result) == 3)
+    _check("Annotate: _axiomguard in metadata",
          "_axiomguard" in result[0].get("metadata", {}))
 
     ag0 = result[0]["metadata"]["_axiomguard"]
     ag1 = result[1]["metadata"]["_axiomguard"]
     ag2 = result[2]["metadata"]["_axiomguard"]
-    test("Chunk 0 (Bangkok): pass", ag0["status"] == "pass")
-    test("Chunk 1 (Chiang Mai): fail", ag1["status"] == "fail")
-    test("Chunk 2 (weather): pass (no rules match)", ag2["status"] == "pass")
+    _check("Chunk 0 (Bangkok): pass", ag0["status"] == "pass")
+    _check("Chunk 1 (Chiang Mai): fail", ag1["status"] == "fail")
+    _check("Chunk 2 (weather): pass (no rules match)", ag2["status"] == "pass")
 
     # Filter mode
     filtered = verify_chunks(
@@ -311,7 +311,7 @@ def test_verify_chunks():
         ],
         kb=kb, mode="filter", axiom_claims=axioms,
     )
-    test("Filter: removed contradiction", len(filtered) == 2,
+    _check("Filter: removed contradiction", len(filtered) == 2,
          f"got {len(filtered)}")
 
     # Strict mode
@@ -322,16 +322,16 @@ def test_verify_chunks():
         ],
         kb=kb, mode="strict", axiom_claims=axioms,
     )
-    test("Strict: verified-only chunks", len(strict) >= 1)
+    _check("Strict: verified-only chunks", len(strict) >= 1)
 
     # Stats
     stats = verification_stats(result)
-    test("Stats: total=3", stats["total_chunks"] == 3)
-    test("Stats: failed=1", stats["failed"] == 1)
+    _check("Stats: total=3", stats["total_chunks"] == 3)
+    _check("Stats: failed=1", stats["failed"] == 1)
 
     # Empty chunks
     empty = verify_chunks([], kb=kb)
-    test("Empty chunks: returns []", empty == [])
+    _check("Empty chunks: returns []", empty == [])
 
     # Drug interaction via chunks
     drug_chunks = [
@@ -341,7 +341,7 @@ def test_verify_chunks():
     drug_result = verify_chunks(drug_chunks, kb=kb, mode="annotate", axiom_claims=drug_axioms)
     # Mock backend extracts "identity" relation, not "takes" — so no rule match
     # This is expected; real LLM would extract "takes"
-    test("Drug chunk: processed without error", len(drug_result) == 1)
+    _check("Drug chunk: processed without error", len(drug_result) == 1)
 
 
 # =====================================================================
@@ -371,7 +371,7 @@ def test_benchmark():
         result = kb.verify(claims)
         elapsed_ms = (time.perf_counter() - start) * 1000
 
-        test(
+        _check(
             f"{n + 1} claims: {elapsed_ms:.1f}ms",
             elapsed_ms < 500,  # must be under 500ms
             f"hallucinating={result.is_hallucinating}",
@@ -397,7 +397,7 @@ def test_benchmark():
         1 for c in result
         if c.get("metadata", {}).get("_axiomguard", {}).get("verified_claims", 0) > 0
     )
-    test(
+    _check(
         f"20 chunks selective: {elapsed_ms:.1f}ms, {verified_count} verified",
         elapsed_ms < 1000,
         f"skipped most irrelevant chunks",
@@ -418,7 +418,7 @@ def test_backward_compat():
 
     # v0.1.0 verify still works
     r = axiomguard.verify("The company is in Chiang Mai", ["The company is in Bangkok"])
-    test("v0.1/v0.2 verify()", r.is_hallucinating)
+    _check("v0.1/v0.2 verify()", r.is_hallucinating)
 
     # v0.3.0 KnowledgeBase string rules still work
     kb = KnowledgeBase()
@@ -435,10 +435,10 @@ rules:
         [Claim(subject="x", relation="r", object="a")],
         [Claim(subject="x", relation="r", object="b")],
     )
-    test("v0.3.0 string rules still work", r2.is_hallucinating)
+    _check("v0.3.0 string rules still work", r2.is_hallucinating)
 
     # Version
-    test(f"Version: {axiomguard.__version__}", axiomguard.__version__ == "0.4.0-dev")
+    _check(f"Version: {axiomguard.__version__}", axiomguard.__version__ == "0.4.0-dev")
 
 
 # =====================================================================

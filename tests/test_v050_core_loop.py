@@ -37,7 +37,7 @@ _passed = 0
 _total = 0
 
 
-def test(name, condition, detail=""):
+def _check(name, condition, detail=""):
     global _passed, _total
     _total += 1
     s = "PASS" if condition else "FAIL"
@@ -148,13 +148,13 @@ def test_verified_first_attempt():
         axiom_claims=axioms,
     )
 
-    test("status = verified", result.status == "verified")
-    test("attempts = 1", result.attempts == 1)
-    test("response contains Bangkok", "Bangkok" in result.response)
-    test("history has 1 entry", len(result.history) == 1)
-    test("history[0].correction_prompt is None",
+    _check("status = verified", result.status == "verified")
+    _check("attempts = 1", result.attempts == 1)
+    _check("response contains Bangkok", "Bangkok" in result.response)
+    _check("history has 1 entry", len(result.history) == 1)
+    _check("history[0].correction_prompt is None",
          result.history[0].correction_prompt is None)
-    test("final_verification.is_hallucinating = False",
+    _check("final_verification.is_hallucinating = False",
          result.final_verification is not None and not result.final_verification.is_hallucinating)
 
 
@@ -185,15 +185,15 @@ def test_corrected_second_attempt():
         axiom_claims=axioms,
     )
 
-    test("status = corrected", result.status == "corrected")
-    test("attempts = 2", result.attempts == 2)
-    test("response contains Bangkok", "Bangkok" in result.response)
-    test("history has 2 entries", len(result.history) == 2)
-    test("history[0] was hallucinating",
+    _check("status = corrected", result.status == "corrected")
+    _check("attempts = 2", result.attempts == 2)
+    _check("response contains Bangkok", "Bangkok" in result.response)
+    _check("history has 2 entries", len(result.history) == 2)
+    _check("history[0] was hallucinating",
          result.history[0].verification.is_hallucinating)
-    test("history[1] was NOT hallucinating",
+    _check("history[1] was NOT hallucinating",
          not result.history[1].verification.is_hallucinating)
-    test("history[1].correction_prompt is not None",
+    _check("history[1].correction_prompt is not None",
          result.history[1].correction_prompt is not None)
 
 
@@ -221,14 +221,14 @@ def test_failed_all_attempts():
         max_retries=2,
     )
 
-    test("status = failed or constraint_conflict",
+    _check("status = failed or constraint_conflict",
          result.status in ("failed", "constraint_conflict"))
-    test("attempts = 3 (1 + 2 retries)", result.attempts == 3)
-    test("max_attempts = 3", result.max_attempts == 3)
-    test("history has 3 entries", len(result.history) == 3)
-    test("all attempts hallucinating",
+    _check("attempts = 3 (1 + 2 retries)", result.attempts == 3)
+    _check("max_attempts = 3", result.max_attempts == 3)
+    _check("history has 3 entries", len(result.history) == 3)
+    _check("all attempts hallucinating",
          all(h.verification.is_hallucinating for h in result.history))
-    test("final_verification.is_hallucinating = True",
+    _check("final_verification.is_hallucinating = True",
          result.final_verification is not None and result.final_verification.is_hallucinating)
 
 
@@ -256,7 +256,7 @@ def test_constraint_conflict():
         max_retries=2,
     )
 
-    test("status = constraint_conflict", result.status == "constraint_conflict",
+    _check("status = constraint_conflict", result.status == "constraint_conflict",
          f"got status={result.status}")
 
 
@@ -287,8 +287,8 @@ def test_unverifiable():
             llm_generate=llm,
         )
 
-        test("status = unverifiable", result.status == "unverifiable")
-        test("attempts = 1", result.attempts == 1)
+        _check("status = unverifiable", result.status == "unverifiable")
+        _check("attempts = 1", result.attempts == 1)
     finally:
         core._llm_backend = old_backend
 
@@ -319,22 +319,22 @@ def test_correction_prompt_content():
     )
 
     # The second call should receive a correction prompt
-    test("LLM called twice", len(llm.prompts) == 2)
+    _check("LLM called twice", len(llm.prompts) == 2)
 
     correction = llm.prompts[1]
-    test("Correction prompt contains 'WHAT WENT WRONG'",
+    _check("Correction prompt contains 'WHAT WENT WRONG'",
          "WHAT WENT WRONG" in correction)
-    test("Correction prompt contains 'RULES THAT WERE VIOLATED'",
+    _check("Correction prompt contains 'RULES THAT WERE VIOLATED'",
          "RULES THAT WERE VIOLATED" in correction)
-    test("Correction prompt contains custom message",
+    _check("Correction prompt contains custom message",
          "Company can only have one location" in correction)
-    test("Correction prompt contains original question",
+    _check("Correction prompt contains original question",
          "Where is the company?" in correction)
 
     # History records the correction prompt
-    test("history[1] has correction_prompt",
+    _check("history[1] has correction_prompt",
          result.history[1].correction_prompt is not None)
-    test("history[1].correction_prompt matches",
+    _check("history[1].correction_prompt matches",
          "WHAT WENT WRONG" in result.history[1].correction_prompt)
 
 
@@ -365,25 +365,25 @@ def test_history_tracking():
         max_retries=2,
     )
 
-    test("status = corrected", result.status == "corrected")
-    test("attempts = 3", result.attempts == 3)
+    _check("status = corrected", result.status == "corrected")
+    _check("attempts = 3", result.attempts == 3)
 
     # Check each attempt
     h0 = result.history[0]
-    test("Attempt 1: Chiang Mai, hallucinating",
+    _check("Attempt 1: Chiang Mai, hallucinating",
          "Chiang Mai" in h0.response and h0.verification.is_hallucinating)
-    test("Attempt 1: no correction_prompt", h0.correction_prompt is None)
-    test("Attempt 1: claims extracted", len(h0.claims) > 0)
+    _check("Attempt 1: no correction_prompt", h0.correction_prompt is None)
+    _check("Attempt 1: claims extracted", len(h0.claims) > 0)
 
     h1 = result.history[1]
-    test("Attempt 2: Phuket, hallucinating",
+    _check("Attempt 2: Phuket, hallucinating",
          "Phuket" in h1.response and h1.verification.is_hallucinating)
-    test("Attempt 2: has correction_prompt", h1.correction_prompt is not None)
+    _check("Attempt 2: has correction_prompt", h1.correction_prompt is not None)
 
     h2 = result.history[2]
-    test("Attempt 3: Bangkok, NOT hallucinating",
+    _check("Attempt 3: Bangkok, NOT hallucinating",
          "Bangkok" in h2.response and not h2.verification.is_hallucinating)
-    test("Attempt 3: has FINAL ATTEMPT prompt",
+    _check("Attempt 3: has FINAL ATTEMPT prompt",
          h2.correction_prompt is not None and "FINAL ATTEMPT" in h2.correction_prompt)
 
 
@@ -416,10 +416,10 @@ def test_timeout():
         timeout_seconds=0.8,     # but we only allow 0.8s
     )
 
-    test("Timed out before max_retries",
+    _check("Timed out before max_retries",
          result.attempts < 11,
          f"attempts={result.attempts}")
-    test("Status is failed/constraint_conflict",
+    _check("Status is failed/constraint_conflict",
          result.status in ("failed", "constraint_conflict"))
 
 
@@ -447,9 +447,9 @@ def test_no_retries():
         max_retries=0,
     )
 
-    test("status = failed", result.status in ("failed", "constraint_conflict"))
-    test("attempts = 1", result.attempts == 1)
-    test("max_attempts = 1", result.max_attempts == 1)
+    _check("status = failed", result.status in ("failed", "constraint_conflict"))
+    _check("attempts = 1", result.attempts == 1)
+    _check("max_attempts = 1", result.max_attempts == 1)
 
 
 # =====================================================================
@@ -466,11 +466,11 @@ def test_backward_compat():
 
     # Old verify() works
     r = axiomguard.verify("The company is in Chiang Mai", ["The company is in Bangkok"])
-    test("verify() still works", r.is_hallucinating)
+    _check("verify() still works", r.is_hallucinating)
 
     # CorrectionResult importable
-    test("CorrectionResult importable", axiomguard.CorrectionResult is not None)
-    test("generate_with_guard importable", axiomguard.generate_with_guard is not None)
+    _check("CorrectionResult importable", axiomguard.CorrectionResult is not None)
+    _check("generate_with_guard importable", axiomguard.generate_with_guard is not None)
 
 
 # =====================================================================
