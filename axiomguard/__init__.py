@@ -1,3 +1,15 @@
+"""
+AxiomGuard — Deterministic Neuro-Symbolic Guardrails for Enterprise AI.
+
+Quickstart::
+
+    from axiomguard import verify, KnowledgeBase, generate_with_guard
+
+    result = verify("The company is in Chiang Mai", ["The company is in Bangkok"])
+    assert result.is_hallucinating is True
+"""
+
+# --- Core verification API ---
 from axiomguard.core import (
     extract_claims,
     generate_with_guard,
@@ -10,14 +22,30 @@ from axiomguard.core import (
     verify,
     verify_with_kb,
 )
+
+# --- Vector DB / RAG integration ---
 from axiomguard.integration import verify_chunks, verification_stats
+
+# --- Knowledge base & rule engine ---
 from axiomguard.knowledge_base import KnowledgeBase
-from axiomguard.models import Claim, CorrectionAttempt, CorrectionResult, ExtractionResult, VerificationResult
 from axiomguard.parser import AxiomParser, RangeRule, RuleSet
+
+# --- Data models ---
+from axiomguard.models import (
+    Claim,
+    CorrectionAttempt,
+    CorrectionResult,
+    ExtractionResult,
+    VerificationResult,
+)
+
+# --- Entity resolution ---
 from axiomguard.resolver import EntityResolver
 
-__version__ = "0.4.0-dev"
+__version__ = "0.5.0"
+
 __all__ = [
+    # Core API
     "verify",
     "verify_with_kb",
     "verify_chunks",
@@ -25,19 +53,23 @@ __all__ = [
     "verification_stats",
     "extract_claims",
     "translate_to_logic",
+    # Configuration
     "set_llm_backend",
     "set_entity_resolver",
     "set_knowledge_base",
     "get_knowledge_base",
     "load_rules",
+    # Data models
     "Claim",
     "CorrectionAttempt",
     "CorrectionResult",
     "ExtractionResult",
     "VerificationResult",
-    "EntityResolver",
-    "AxiomParser",
+    # Knowledge base
     "KnowledgeBase",
+    "AxiomParser",
     "RangeRule",
     "RuleSet",
+    # Entity resolution
+    "EntityResolver",
 ]
