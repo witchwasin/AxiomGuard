@@ -25,6 +25,7 @@ from axiomguard.parser import (
     AxiomParser,
     DependencyRule,
     ExclusionRule,
+    NegationRule,
     RangeRule,
     RuleSet,
     TemporalRule,
@@ -165,6 +166,8 @@ class KnowledgeBase:
                 rels.add(rule.then.require.relation)
             elif isinstance(rule, RangeRule):
                 rels.add(rule.relation)
+            elif isinstance(rule, NegationRule):
+                rels.add(rule.relation)
             elif isinstance(rule, TemporalRule):
                 rels.add(rule.relation)
                 if rule.reference != "system_time":
@@ -250,6 +253,8 @@ class KnowledgeBase:
             constraints = self._compile_dependency(rule)
         elif isinstance(rule, RangeRule):
             constraints = self._compile_range(rule)
+        elif isinstance(rule, NegationRule):
+            constraints = self._compile_negation(rule)
         elif isinstance(rule, TemporalRule):
             constraints = self._compile_temporal(rule)
             self._has_temporal_rules = True
@@ -320,38 +325,50 @@ class KnowledgeBase:
             when_val = z3.StringVal(rule.when.value)
             when_expr = R(when_rel, s, when_val)
 
-        # --- Build THEN expression ---
-        if rule.then.require.value_type != "string":
-            then_fn = self._get_numeric_attr(
-                rule.then.require.relation, rule.then.require.value_type
-            )
-            then_z3_val = self._make_z3_val(
-                rule.then.require.value, rule.then.require.value_type
-            )
-            then_expr = self._apply_operator(
-                then_fn(s), rule.then.require.operator, then_z3_val
-            )
-        else:
-            then_rel = z3.StringVal(rule.then.require.relation)
-            then_val = z3.StringVal(rule.then.require.value)
-            then_expr = R(then_rel, s, then_val)
-
-        constraints = [
-            z3.ForAll([s], z3.Implies(when_expr, then_expr)),
-        ]
-
-        # Auto-uniqueness only for string-based 'then' relations
-        if rule.then.require.value_type == "string":
-            then_rel = z3.StringVal(rule.then.require.relation)
-            constraints.append(
-                z3.ForAll(
-                    [s, o1, o2],
-                    z3.Implies(
-                        z3.And(R(then_rel, s, o1), R(then_rel, s, o2)),
-                        o1 == o2,
-                    ),
+        # --- Build THEN REQUIRE expression ---
+        constraints = []
+        if rule.then.require is not None:
+            if rule.then.require.value_type != "string":
+                then_fn = self._get_numeric_attr(
+                    rule.then.require.relation, rule.then.require.value_type
                 )
+                then_z3_val = self._make_z3_val(
+                    rule.then.require.value, rule.then.require.value_type
+                )
+                then_expr = self._apply_operator(
+                    then_fn(s), rule.then.require.operator, then_z3_val
+                )
+            else:
+                then_rel = z3.StringVal(rule.then.require.relation)
+                then_val = z3.StringVal(rule.then.require.value)
+                then_expr = R(then_rel, s, then_val)
+
+            constraints.append(
+                z3.ForAll([s], z3.Implies(when_expr, then_expr)),
             )
+
+            # Auto-uniqueness only for string-based 'then' relations
+            if rule.then.require.value_type == "string":
+                then_rel = z3.StringVal(rule.then.require.relation)
+                constraints.append(
+                    z3.ForAll(
+                        [s, o1, o2],
+                        z3.Implies(
+                            z3.And(R(then_rel, s, o1), R(then_rel, s, o2)),
+                            o1 == o2,
+                        ),
+                    )
+                )
+
+        # --- Build THEN FORBID expression (v0.6.0) ---
+        if rule.then.forbid is not None:
+            for val in rule.then.forbid.values:
+                forbid_expr = z3.Not(
+                    R(z3.StringVal(rule.then.forbid.relation), s, z3.StringVal(val))
+                )
+                constraints.append(
+                    z3.ForAll([s], z3.Implies(when_expr, forbid_expr))
+                )
 
         return constraints
 
@@ -372,6 +389,19 @@ class KnowledgeBase:
             return []
 
         return [z3.ForAll([s], z3.And(*bounds) if len(bounds) > 1 else bounds[0])]
+
+    def _compile_negation(self, rule: NegationRule) -> list[z3.ExprRef]:
+        """negation → ForAll([s], Not(Relation(rel, s, forbidden)))"""
+        R = self._Relation
+        s = z3.Const("s", self._StringSort)
+        rel = z3.StringVal(rule.relation)
+
+        constraints = []
+        for forbidden in rule.must_not_include:
+            constraints.append(
+                z3.ForAll([s], z3.Not(R(rel, s, z3.StringVal(forbidden))))
+            )
+        return constraints
 
     def _compile_temporal(self, rule: TemporalRule) -> list[z3.ExprRef]:
         """temporal → ForAll([s], And(ref - attr(s) >= min_delta, ref - attr(s) <= max_delta))
@@ -660,6 +690,11 @@ class KnowledgeBase:
                                 seen_rules.add(meta["name"])
                         except (ValueError, TypeError):
                             pass
+
+                elif isinstance(rule, NegationRule):
+                    if rc.relation == rule.relation and rc.object in rule.must_not_include:
+                        violated.append(meta)
+                        seen_rules.add(meta["name"])
 
                 elif isinstance(rule, TemporalRule):
                     if rc.relation == rule.relation or (

@@ -349,6 +349,66 @@ def verify_with_kb(
 
 
 # =====================================================================
+# Extraction Bias Audit (v0.6.0)
+# =====================================================================
+
+# Default protected attributes — users can override via audit_extraction_bias()
+DEFAULT_PROTECTED_ATTRIBUTES = frozenset({
+    "gender", "male", "female", "man", "woman", "boy", "girl",
+    "race", "white", "black", "asian", "hispanic", "latino", "latina",
+    "religion", "muslim", "christian", "jewish", "hindu", "buddhist",
+    "age", "elderly", "young", "old",
+    "disability", "disabled", "handicapped",
+    "ethnicity", "ethnic",
+    "sexual orientation", "gay", "lesbian", "transgender",
+})
+
+
+def audit_extraction_bias(
+    claims: List[Claim],
+    protected_attributes: Optional[frozenset] = None,
+) -> List[str]:
+    """Check extracted claims for protected attribute leakage (v0.6.0).
+
+    Deterministic keyword check — no LLM involved. Scans claim subjects
+    and objects for protected attribute terms that may indicate bias
+    was encoded during extraction.
+
+    This does NOT block verification — it adds warnings to the audit trail
+    so humans can review flagged claims.
+
+    Args:
+        claims: Extracted claims to audit.
+        protected_attributes: Set of lowercase terms to flag.
+            Defaults to DEFAULT_PROTECTED_ATTRIBUTES.
+
+    Returns:
+        List of warning strings for flagged claims.
+
+    Example::
+
+        claims = extract_claims("The female applicant was recommended for secretary.")
+        warnings = audit_extraction_bias(claims)
+        # → ["Claim 0: protected attribute 'female' detected in
+        #     'female applicant identity secretary'"]
+    """
+    attrs = protected_attributes or DEFAULT_PROTECTED_ATTRIBUTES
+    warnings: List[str] = []
+
+    for i, claim in enumerate(claims):
+        claim_text = f"{claim.subject} {claim.relation} {claim.object}".lower()
+        for attr in attrs:
+            if attr in claim_text:
+                warnings.append(
+                    f"Claim {i}: protected attribute '{attr}' detected in "
+                    f"'{claim.subject} {claim.relation} {claim.object}'"
+                )
+                break  # One warning per claim is enough
+
+    return warnings
+
+
+# =====================================================================
 # Public API — Structured Input Path (v0.6.0)
 # =====================================================================
 

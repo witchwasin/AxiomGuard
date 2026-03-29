@@ -139,7 +139,14 @@ class ThenRequirement(BaseModel):
 class ThenClause(BaseModel):
     """The 'then' part of a dependency rule."""
 
-    require: ThenRequirement
+    require: Optional[ThenRequirement] = None
+    forbid: Optional["ThenForbid"] = None
+
+    @model_validator(mode="after")
+    def require_at_least_one(self) -> "ThenClause":
+        if self.require is None and self.forbid is None:
+            raise ValueError("ThenClause must have at least one of 'require' or 'forbid'.")
+        return self
 
 
 class DependencyRule(_RuleBase):
@@ -217,6 +224,46 @@ def parse_delta(delta_str: str) -> int:
     return value * _DELTA_MULTIPLIERS[unit]
 
 
+class NegationRule(_RuleBase):
+    """Prohibition rule: entity must NOT have these values.
+
+    Example YAML (single):
+        - name: No penicillin for allergic patients
+          type: negation
+          entity: patient
+          relation: medication
+          must_not_include: Penicillin
+          message: "Patient must NOT receive Penicillin."
+
+    Example YAML (multiple):
+        - name: Banned substances
+          type: negation
+          entity: employee
+          relation: substance_test
+          must_not_include: [Methamphetamine, Cocaine, Heroin]
+          message: "Banned substance detected."
+    """
+
+    type: Literal["negation"]
+    entity: str = Field(min_length=1)
+    relation: str = Field(min_length=1)
+    must_not_include: list[str] = Field(min_length=1)
+
+    @field_validator("must_not_include", mode="before")
+    @classmethod
+    def normalize_to_list(cls, v):
+        if isinstance(v, str):
+            return [v]
+        return v
+
+
+class ThenForbid(BaseModel):
+    """What must NOT be true when the dependency condition is met."""
+
+    relation: str = Field(min_length=1)
+    values: list[str] = Field(min_length=1)
+
+
 class TemporalRule(_RuleBase):
     """Time-bound constraint: enforces time delta between events or vs system clock.
 
@@ -292,7 +339,7 @@ class TemporalRule(_RuleBase):
 # =====================================================================
 
 Rule = Annotated[
-    Union[UniqueRule, ExclusionRule, DependencyRule, RangeRule, TemporalRule],
+    Union[UniqueRule, ExclusionRule, DependencyRule, RangeRule, NegationRule, TemporalRule],
     Field(discriminator="type"),
 ]
 
