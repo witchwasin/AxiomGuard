@@ -1,0 +1,159 @@
+# ═══════════════════════════════════════════════════════════════════════
+# ELECTRONIC HEALTH RECORD — HIGH-RISK MEDICATION SAFETY POLICY
+# ═══════════════════════════════════════════════════════════════════════
+# System: AI Nursing Assistant (Edge LLM on Clinical Workstation)
+# Authority: Hospital Pharmacy & Therapeutics Committee
+# Standards: ISMP High-Alert Medications, Joint Commission NPSG.03.05.01
+#
+# CRITICAL: These rules are mathematically enforced by Z3 theorem prover.
+# The AI assistant cannot override them. When a constraint is violated,
+# the medication order is BLOCKED and escalated to the attending
+# physician — no exceptions, no workarounds.
+#
+# "LLMs don't have an internal clock. They might hallucinate the time
+#  and administer medication too early or skip it entirely, which can
+#  be fatal." — This policy ensures Z3 handles all temporal math.
+# ═══════════════════════════════════════════════════════════════════════
+
+axiomguard: "0.3"
+domain: medication_safety
+
+entities:
+  - name: patient
+    aliases: ["pt", "ผู้ป่วย", "client", "resident"]
+  - name: provider
+    aliases: ["physician", "doctor", "md", "attending", "แพทย์"]
+  - name: nurse
+    aliases: ["rn", "nursing_staff", "พยาบาล"]
+
+relations:
+  - name: morphine_dose_time
+    category: definitional
+    description: "Timestamp of last morphine administration — immutable medical record"
+  - name: morphine_dosage_mg
+    category: definitional
+    description: "Dosage amount — must match physician order exactly"
+  - name: pain_score
+    category: contingent
+    description: "Patient-reported pain score — changes over time"
+  - name: ocr_confidence
+    category: normative_risk
+    description: "AI confidence in reading physician handwriting — low values are dangerous"
+
+rules:
+  # ─────────────────────────────────────────────────────────────────
+  # RULE 1: Morphine Minimum Interval (Temporal)
+  # ─────────────────────────────────────────────────────────────────
+  # ISMP Alert: Opioid narcotics are among the most common causes of
+  # fatal medication errors. Morphine IV/IM must not be administered
+  # more frequently than every 4 hours for adult patients.
+  #
+  # The AI assistant has NO internal clock. It cannot estimate elapsed
+  # time. Z3 computes the exact time delta mathematically:
+  #   system_time - last_dose_time >= 14400 seconds (4 hours)
+  # ─────────────────────────────────────────────────────────────────
+  - name: morphine_minimum_interval
+    type: temporal
+    entity: patient
+    relation: morphine_dose_time
+    reference: system_time
+    min_delta: "4h"
+    severity: error
+    message: >
+      MEDICATION SAFETY ALERT [ISMP-OPI-001]: Morphine re-administration
+      interval violation. Minimum 4 hours required between doses.
+      Last dose was administered less than 4 hours ago.
+      RISK: Respiratory depression, overdose, death.
+      ACTION: Order BLOCKED. Notify attending physician immediately.
+
+  # ─────────────────────────────────────────────────────────────────
+  # RULE 2: Morphine Maximum Single Dose (Range)
+  # ─────────────────────────────────────────────────────────────────
+  # Adult morphine sulfate single-dose ceiling: 10mg IV/IM.
+  # Doses exceeding this require attending physician override with
+  # dual-verification by pharmacist.
+  # ─────────────────────────────────────────────────────────────────
+  - name: morphine_max_single_dose
+    type: range
+    entity: patient
+    relation: morphine_dosage_mg
+    value_type: float
+    min: 0.5
+    max: 10.0
+    severity: error
+    message: >
+      MEDICATION SAFETY ALERT [DOSE-CEIL-002]: Morphine dosage outside
+      permitted range (0.5–10mg). Order BLOCKED.
+      Doses exceeding 10mg require attending physician override
+      with dual-verification by pharmacist.
+
+  # ─────────────────────────────────────────────────────────────────
+  # RULE 3: OCR/AI Confidence Threshold for High-Risk Medications
+  # ─────────────────────────────────────────────────────────────────
+  # When AI reads physician handwriting (OCR) or interprets orders,
+  # confidence must be >= 0.95 for Schedule II controlled substances.
+  # Below this, the order must be manually verified by pharmacist.
+  # ─────────────────────────────────────────────────────────────────
+  - name: high_risk_med_confidence
+    type: range
+    entity: patient
+    relation: ocr_confidence
+    value_type: float
+    min: 0.95
+    severity: error
+    message: >
+      MEDICATION SAFETY ALERT [OCR-CONF-003]: AI confidence below 0.95
+      threshold for Schedule II controlled substance (Morphine).
+      Handwriting/order interpretation is UNRELIABLE.
+      ACTION: Order BLOCKED. Manual pharmacist verification required.
+      DO NOT administer until pharmacist confirms dosage.
+
+  # ─────────────────────────────────────────────────────────────────
+  # RULE 4: Contraindicated Medications (Negation)
+  # ─────────────────────────────────────────────────────────────────
+  - name: opioid_naloxone_conflict
+    type: exclusion
+    entity: patient
+    relation: active_medication
+    values: [Morphine, Naloxone]
+    severity: error
+    message: >
+      MEDICATION SAFETY ALERT [CONTRA-004]: Cannot co-administer
+      Morphine and Naloxone. Naloxone is an opioid antagonist that
+      reverses Morphine effects. Clinical review required.
+
+  # ─────────────────────────────────────────────────────────────────
+  # RULE 5: Allergy Cross-Reactivity (Conditional Forbid)
+  # ─────────────────────────────────────────────────────────────────
+  - name: opioid_allergy_crossreact
+    type: dependency
+    when:
+      entity: patient
+      relation: allergy
+      value: Codeine
+    then:
+      forbid:
+        relation: prescribed_medication
+        values: [Morphine, Hydrocodone, Oxycodone]
+    severity: error
+    message: >
+      MEDICATION SAFETY ALERT [ALLERGY-005]: Patient has documented
+      Codeine allergy. Cross-reactivity risk with opioid class.
+      Morphine, Hydrocodone, and Oxycodone are CONTRAINDICATED.
+      Consult allergist or use non-opioid analgesic.
+
+  # ─────────────────────────────────────────────────────────────────
+  # RULE 6: Vital Signs Monitoring Window (Temporal)
+  # ─────────────────────────────────────────────────────────────────
+  - name: vitals_before_opioid
+    type: temporal
+    entity: patient
+    relation: last_vitals_check
+    reference: system_time
+    max_delta: "30m"
+    severity: error
+    message: >
+      MEDICATION SAFETY ALERT [VITALS-006]: Vital signs not recorded
+      within 30 minutes prior to opioid administration. Respiratory
+      rate, O2 saturation, and blood pressure must be documented.
+      ACTION: Check vitals NOW, then re-submit order.
