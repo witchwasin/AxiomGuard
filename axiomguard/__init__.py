@@ -28,7 +28,7 @@ from axiomguard.integration import verify_chunks, verification_stats
 
 # --- Knowledge base & rule engine ---
 from axiomguard.knowledge_base import KnowledgeBase
-from axiomguard.parser import AxiomParser, RangeRule, RuleSet
+from axiomguard.parser import AxiomParser, RangeRule, RuleSet, TemporalRule
 
 # --- Data models ---
 from axiomguard.models import (
@@ -81,6 +81,7 @@ __all__ = [
     "AxiomParser",
     "RangeRule",
     "RuleSet",
+    "TemporalRule",
     # Rule generation
     "RuleBuilder",
     "generate_rules",

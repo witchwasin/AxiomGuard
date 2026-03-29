@@ -15,11 +15,12 @@ Usage:
 
 from __future__ import annotations
 
+import re
 from pathlib import Path
 from typing import Annotated, List, Literal, Optional, Union
 
 import yaml
-from pydantic import BaseModel, Field, model_validator
+from pydantic import BaseModel, Field, model_validator, field_validator
 
 
 # =====================================================================
@@ -184,11 +185,114 @@ class RangeRule(_RuleBase):
 
 
 # =====================================================================
+# Time Delta Parsing
+# =====================================================================
+
+_DELTA_MULTIPLIERS = {"s": 1, "m": 60, "h": 3600, "d": 86400, "w": 604800}
+
+
+def parse_delta(delta_str: str) -> int:
+    """Parse a human-readable time delta string to seconds.
+
+    Supports: 30s, 5m, 4h, 7d, 2w (seconds, minutes, hours, days, weeks).
+
+    Args:
+        delta_str: Time delta string (e.g., "4h", "30m", "7d").
+
+    Returns:
+        Number of seconds.
+
+    Raises:
+        ValueError: If the format is not recognized.
+    """
+    match = re.match(r"^(\d+)\s*(s|m|h|d|w)$", delta_str.strip())
+    if not match:
+        raise ValueError(
+            f"Invalid delta format: '{delta_str}'. "
+            f"Expected: <number><unit> where unit is s/m/h/d/w "
+            f"(e.g., '4h', '30m', '7d')"
+        )
+    value = int(match.group(1))
+    unit = match.group(2)
+    return value * _DELTA_MULTIPLIERS[unit]
+
+
+class TemporalRule(_RuleBase):
+    """Time-bound constraint: enforces time delta between events or vs system clock.
+
+    Z3 computes the delta mathematically — no LLM estimates passage of time.
+
+    Example YAML (event vs system_time):
+        - name: medication_review_overdue
+          type: temporal
+          entity: patient
+          relation: last_review_time
+          reference: system_time
+          max_delta: "4h"
+          message: "Medication review overdue — must be within 4 hours."
+
+    Example YAML (event vs event):
+        - name: min_hospital_stay
+          type: temporal
+          entity: patient
+          relation: admission_time
+          reference: discharge_time
+          min_delta: "1h"
+          message: "Patient must stay at least 1 hour."
+
+    Example YAML (both bounds):
+        - name: token_validity
+          type: temporal
+          entity: session
+          relation: token_issued_at
+          reference: system_time
+          min_delta: "0s"
+          max_delta: "1h"
+          message: "Token must be valid (0-1 hour old)."
+    """
+
+    type: Literal["temporal"]
+    entity: str = Field(min_length=1)
+    relation: str = Field(
+        min_length=1,
+        description="The timestamp relation (e.g., 'last_review_time')",
+    )
+    reference: str = Field(
+        default="system_time",
+        description="What to compare against: 'system_time' or another relation name",
+    )
+    min_delta: Optional[str] = Field(
+        default=None,
+        description="Minimum required time difference (e.g., '1h', '30m')",
+    )
+    max_delta: Optional[str] = Field(
+        default=None,
+        description="Maximum allowed time difference (e.g., '4h', '7d')",
+    )
+
+    @field_validator("min_delta", "max_delta", mode="before")
+    @classmethod
+    def validate_delta_format(cls, v: Optional[str]) -> Optional[str]:
+        if v is not None:
+            parse_delta(v)  # Will raise ValueError if invalid
+        return v
+
+    @model_validator(mode="after")
+    def require_at_least_one_delta(self) -> "TemporalRule":
+        if self.min_delta is None and self.max_delta is None:
+            raise ValueError(
+                f'Temporal rule "{self.name}" must specify at least one of '
+                f"min_delta or max_delta."
+            )
+        return self
+
+
+# =====================================================================
 # Discriminated Union
 # =====================================================================
 
 Rule = Annotated[
-    Union[UniqueRule, ExclusionRule, DependencyRule, RangeRule],
+    Union[UniqueRule, ExclusionRule, DependencyRule, RangeRule, TemporalRule],
     Field(discriminator="type"),
 ]
 

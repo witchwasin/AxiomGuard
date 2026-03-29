@@ -13,9 +13,10 @@ Pipeline:
 
 from __future__ import annotations
 
-from datetime import date
+from datetime import date, datetime, timezone
 from itertools import combinations
 from pathlib import Path
+from typing import Optional, Union
 
 import z3
 
@@ -26,7 +27,9 @@ from axiomguard.parser import (
     ExclusionRule,
     RangeRule,
     RuleSet,
+    TemporalRule,
     UniqueRule,
+    parse_delta,
 )
 from axiomguard.resolver import EntityResolver
 
@@ -54,7 +57,38 @@ def _parse_numeric(value: str, value_type: str) -> int | float:
         return float(value)
     elif value_type == "date":
         return date.fromisoformat(value).toordinal()
+    elif value_type == "datetime":
+        return _parse_datetime_to_epoch(value)
     raise ValueError(f"Unknown numeric value_type: {value_type}")
+
+
+def _parse_datetime_to_epoch(value: str) -> int:
+    """Parse an ISO datetime string or epoch integer string to epoch seconds."""
+    # Try epoch integer first (plain digits)
+    if value.isdigit() or (value.startswith("-") and value[1:].isdigit()):
+        return int(value)
+    # Parse ISO format
+    dt = datetime.fromisoformat(value)
+    if dt.tzinfo is None:
+        dt = dt.replace(tzinfo=timezone.utc)
+    return int(dt.timestamp())
+
+
+def _resolve_system_time(
+    system_time: Optional[Union[str, datetime, int]],
+) -> int:
+    """Convert system_time parameter to epoch seconds."""
+    if system_time is None:
+        return int(datetime.now(timezone.utc).timestamp())
+    if isinstance(system_time, int):
+        return system_time
+    if isinstance(system_time, datetime):
+        if system_time.tzinfo is None:
+            system_time = system_time.replace(tzinfo=timezone.utc)
+        return int(system_time.timestamp())
+    if isinstance(system_time, str):
+        return _parse_datetime_to_epoch(system_time)
+    raise TypeError(f"Unsupported system_time type: {type(system_time)}")
 
 
 # =====================================================================
@@ -90,6 +124,10 @@ class KnowledgeBase:
         # Z3 numeric attribute functions (v0.4.0)
         # Maps relation name → (z3.FuncDeclRef, value_type_str)
         self._numeric_attrs: dict[str, tuple[z3.FuncDeclRef, str]] = {}
+
+        # Z3 temporal infrastructure (v0.6.0)
+        self._system_time = z3.Int("system_time")
+        self._has_temporal_rules = False
 
         # Compiled Z3 constraints
         self._constraints: list[z3.ExprRef] = []
@@ -127,6 +165,10 @@ class KnowledgeBase:
                 rels.add(rule.then.require.relation)
             elif isinstance(rule, RangeRule):
                 rels.add(rule.relation)
+            elif isinstance(rule, TemporalRule):
+                rels.add(rule.relation)
+                if rule.reference != "system_time":
+                    rels.add(rule.reference)
         return rels
 
     # =================================================================
@@ -161,11 +203,12 @@ class KnowledgeBase:
         Creates: attr_int_<relation>(StringSort) -> IntSort
                  attr_float_<relation>(StringSort) -> RealSort
                  attr_date_<relation>(StringSort) -> IntSort  (ordinal days)
+                 attr_datetime_<relation>(StringSort) -> IntSort  (epoch seconds)
         """
         if relation in self._numeric_attrs:
             return self._numeric_attrs[relation][0]
 
-        if value_type in ("int", "date"):
+        if value_type in ("int", "date", "datetime"):
             sort = z3.IntSort()
         elif value_type == "float":
             sort = z3.RealSort()
@@ -184,6 +227,8 @@ class KnowledgeBase:
             return z3.RealVal(value)
         elif value_type == "date":
             return z3.IntVal(date.fromisoformat(value).toordinal())
+        elif value_type == "datetime":
+            return z3.IntVal(_parse_datetime_to_epoch(value))
         return z3.StringVal(value)
 
     def _apply_operator(self, lhs, operator: str, rhs):
@@ -205,6 +250,9 @@ class KnowledgeBase:
             constraints = self._compile_dependency(rule)
         elif isinstance(rule, RangeRule):
             constraints = self._compile_range(rule)
+        elif isinstance(rule, TemporalRule):
+            constraints = self._compile_temporal(rule)
+            self._has_temporal_rules = True
         else:
             raise ValueError(f"Unknown rule type: {type(rule)}")
 
@@ -325,6 +373,40 @@ class KnowledgeBase:
 
         return [z3.ForAll([s], z3.And(*bounds) if len(bounds) > 1 else bounds[0])]
 
+    def _compile_temporal(self, rule: TemporalRule) -> list[z3.ExprRef]:
+        """temporal → ForAll([s], And(ref - attr(s) >= min_delta, ref - attr(s) <= max_delta))
+
+        Reference can be 'system_time' (Z3 Int constant) or another relation
+        (another datetime attribute function).
+        """
+        # Register the event relation as a datetime attribute
+        attr_fn = self._get_numeric_attr(rule.relation, "datetime")
+        s = z3.Const("s", self._StringSort)
+
+        # Determine the reference value
+        if rule.reference == "system_time":
+            ref_val = self._system_time
+        else:
+            # Reference is another relation — register it too
+            ref_fn = self._get_numeric_attr(rule.reference, "datetime")
+            ref_val = ref_fn(s)
+
+        delta_expr = ref_val - attr_fn(s)
+
+        bounds = []
+        if rule.min_delta is not None:
+            min_seconds = parse_delta(rule.min_delta)
+            bounds.append(delta_expr >= z3.IntVal(min_seconds))
+        if rule.max_delta is not None:
+            max_seconds = parse_delta(rule.max_delta)
+            bounds.append(delta_expr <= z3.IntVal(max_seconds))
+
+        if not bounds:
+            return []
+
+        constraint = z3.And(*bounds) if len(bounds) > 1 else bounds[0]
+        return [z3.ForAll([s], constraint)]
+
     # =================================================================
     # Verification
     # =================================================================
@@ -334,6 +416,7 @@ class KnowledgeBase:
         response_claims: list[Claim],
         axiom_claims: list[Claim] | None = None,
         timeout_ms: int = 2000,
+        system_time: Optional[Union[str, datetime, int]] = None,
     ) -> VerificationResult:
         # Resolve entities
         response_resolved, resp_warnings = self._resolver.resolve_claims(response_claims)
@@ -351,6 +434,11 @@ class KnowledgeBase:
         # Add compiled rules (ForAll constraints from YAML)
         for constraint in self._constraints:
             solver.add(constraint)
+
+        # Inject system_time for temporal rules (v0.6.0)
+        if self._has_temporal_rules:
+            epoch = _resolve_system_time(system_time)
+            solver.add(self._system_time == z3.IntVal(epoch))
 
         # Assert axiom facts (ground truths + numeric attributes)
         for ax in axiom_resolved:
@@ -464,7 +552,7 @@ class KnowledgeBase:
             attr_fn, vtype = self._numeric_attrs[claim.relation]
             try:
                 val = _parse_numeric(claim.object, vtype)
-                if vtype in ("int", "date"):
+                if vtype in ("int", "date", "datetime"):
                     exprs.append(attr_fn(z3.StringVal(claim.subject)) == z3.IntVal(val))
                 elif vtype == "float":
                     exprs.append(attr_fn(z3.StringVal(claim.subject)) == z3.RealVal(str(val)))
@@ -572,6 +660,14 @@ class KnowledgeBase:
                                 seen_rules.add(meta["name"])
                         except (ValueError, TypeError):
                             pass
+
+                elif isinstance(rule, TemporalRule):
+                    if rc.relation == rule.relation or (
+                        rule.reference != "system_time"
+                        and rc.relation == rule.reference
+                    ):
+                        violated.append(meta)
+                        seen_rules.add(meta["name"])
 
         return violated
 
