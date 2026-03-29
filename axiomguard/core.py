@@ -453,13 +453,17 @@ def audit_extraction_bias(
         # → ["Claim 0: protected attribute 'female' detected in
         #     'female applicant identity secretary'"]
     """
+    import re as _re
+
     attrs = protected_attributes or DEFAULT_PROTECTED_ATTRIBUTES
     warnings: List[str] = []
 
     for i, claim in enumerate(claims):
         claim_text = f"{claim.subject} {claim.relation} {claim.object}".lower()
         for attr in attrs:
-            if attr in claim_text:
+            # Word boundary match to avoid false positives
+            # e.g., "man" should not match "permanently"
+            if _re.search(r'\b' + _re.escape(attr) + r'\b', claim_text):
                 warnings.append(
                     f"Claim {i}: protected attribute '{attr}' detected in "
                     f"'{claim.subject} {claim.relation} {claim.object}'"

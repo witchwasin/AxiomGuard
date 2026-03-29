@@ -1,0 +1,129 @@
+# ═══════════════════════════════════════════════════════════════════════
+# MARS ROVER AUTONOMOUS NAVIGATION — SAFETY POLICY
+# ═══════════════════════════════════════════════════════════════════════
+# System: Martian Rover Edge Compute (Qualcomm Snapdragon / Jetson Orin)
+# LLM: Quantized on-device model (e.g., Gemma-2B-Q4)
+# Authority: NASA JPL Flight Rules + AxiomGuard Z3 Formal Verification
+#
+# CRITICAL: These rules are mathematically enforced. The onboard LLM
+# cannot override them. Z3 proves constraint satisfaction or the
+# navigation plan is rejected deterministically.
+# ═══════════════════════════════════════════════════════════════════════
+
+axiomguard: "0.3"
+domain: mars_rover_navigation
+
+entities:
+  - name: rover
+    aliases: ["vehicle", "unit", "perseverance", "curiosity"]
+  - name: mission_control
+    aliases: ["mc", "jpl", "ground"]
+
+relations:
+  - name: battery_level
+    category: definitional
+    description: "Current battery state-of-charge percentage"
+  - name: terrain_confidence
+    category: contingent
+    description: "ML-derived terrain traversability score — may be unreliable"
+  - name: planned_route
+    category: normative_risk
+    description: "LLM-generated path — must be verified against exclusion zones"
+
+rules:
+  # ─────────────────────────────────────────────────────────
+  # RULE 1: Solar Recharge Temporal Constraint
+  # ─────────────────────────────────────────────────────────
+  # Flight Rule MR-NAV-017: Rover must not execute a long-range
+  # traverse if solar panels have not been charged within the
+  # last 12 hours. Violating this risks total power loss in a
+  # region with no sunlight, rendering the rover unrecoverable.
+  # ─────────────────────────────────────────────────────────
+  - name: solar_recharge_required
+    type: temporal
+    entity: rover
+    relation: last_charge_time
+    reference: system_time
+    max_delta: "12h"
+    severity: error
+    message: >
+      FLIGHT RULE MR-NAV-017 VIOLATED: Solar recharge timeout exceeded.
+      Rover has not charged in over 12 hours. Long-range traverse is
+      PROHIBITED until solar panels complete a charging cycle.
+      Risk: Total power loss in shadowed terrain. Mission-critical.
+
+  # ─────────────────────────────────────────────────────────
+  # RULE 2: Permanently Shadowed Region Exclusion
+  # ─────────────────────────────────────────────────────────
+  # Flight Rule MR-NAV-042: Permanently shadowed regions (PSRs)
+  # are designated no-go zones. These regions have no solar
+  # exposure, extreme cold (-220C), and uncharacterized terrain.
+  # No autonomous traverse is permitted through a PSR under
+  # any circumstances.
+  # ─────────────────────────────────────────────────────────
+  - name: psr_exclusion_zone
+    type: negation
+    entity: rover
+    relation: planned_route
+    must_not_include:
+      - permanently_shadowed_region
+      - psr_zone
+      - dark_crater_floor
+    severity: error
+    message: >
+      FLIGHT RULE MR-NAV-042 VIOLATED: Route includes permanently
+      shadowed region (PSR). Autonomous traverse through PSR is
+      PROHIBITED. Temperature: -220C, zero solar exposure,
+      uncharacterized terrain. Reroute required.
+
+  # ─────────────────────────────────────────────────────────
+  # RULE 3: Terrain Confidence Threshold
+  # ─────────────────────────────────────────────────────────
+  # Flight Rule MR-NAV-063: Autonomous path execution requires
+  # terrain stability confidence >= 0.85. Below this threshold,
+  # the navigation plan must be escalated to mission control
+  # for manual review via uplink.
+  # ─────────────────────────────────────────────────────────
+  - name: terrain_confidence_minimum
+    type: range
+    entity: rover
+    relation: terrain_confidence
+    value_type: float
+    min: 0.85
+    severity: error
+    message: >
+      FLIGHT RULE MR-NAV-063 VIOLATED: Terrain confidence below
+      minimum autonomous threshold (0.85). Navigation plan must be
+      escalated to Mission Control for manual review. Autonomous
+      execution is BLOCKED.
+
+  # ─────────────────────────────────────────────────────────
+  # RULE 4: Battery Floor for Traverse
+  # ─────────────────────────────────────────────────────────
+  - name: battery_minimum_for_traverse
+    type: range
+    entity: rover
+    relation: battery_level
+    value_type: int
+    min: 30
+    severity: error
+    message: >
+      FLIGHT RULE MR-PWR-011 VIOLATED: Battery below 30% minimum
+      for traverse operations. Rover must enter safe mode and
+      await solar charging before any movement.
+
+  # ─────────────────────────────────────────────────────────
+  # RULE 5: No Traverse During Dust Storm
+  # ─────────────────────────────────────────────────────────
+  - name: dust_storm_halt
+    type: negation
+    entity: rover
+    relation: environment_status
+    must_not_include:
+      - dust_storm_active
+      - visibility_zero
+    severity: error
+    message: >
+      FLIGHT RULE MR-ENV-008 VIOLATED: Active dust storm detected.
+      All traverse operations suspended until atmospheric opacity
+      returns to nominal levels (tau < 1.5).
