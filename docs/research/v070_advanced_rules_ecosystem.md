@@ -1,9 +1,15 @@
 # v0.7.0 Applied Research: Advanced Rules & Ecosystem Integration
 
 > **Status:** Outline — Pending v0.6.0 Completion
-> **Date:** 2026-03-28
+> **Date:** 2026-03-28 (updated 2026-03-29)
 > **Goal:** Cover the full range of enterprise constraints and integrate with
 > the LLM ecosystem (LangChain, LlamaIndex, Axiom Studio).
+>
+> **Related:** [Tournament-Style Rule Derivation](v070_tournament_rule_derivation.md)
+> — a separate research doc covering multi-strategy candidate generation,
+> Z3 conflict detection, and human arbitration. Tournament mode is a v0.7.0
+> feature that transforms Axiom Studio from a rule editor into a full
+> rule derivation platform.
 
 ---
 
@@ -365,18 +371,26 @@ Phase 1 (Rule Types):
   ├── Cardinality constraints
   └── Rule composition (AND/OR/NOT)
 
-Phase 2 (Ecosystem — parallelizable):
+Phase 2 (Tournament — see v070_tournament_rule_derivation.md):
+  ├── tournament.py — core engine (generate, detect, arbitrate, export)
+  ├── Strategy prompt templates (5 strategies)
+  └── Pairwise Z3 conflict detection
+
+Phase 3 (Ecosystem — parallelizable):
   ├── LangChain integration
   ├── LlamaIndex integration
   └── REST API (FastAPI)
 
-Phase 3 (UI):
+Phase 4 (UI):
   └── Axiom Studio (Streamlit)
+      ├── Tab 1: Manual Editor
+      ├── Tab 2: Tournament Mode
+      └── Tab 3: Rule Tester
 
-Phase 4 (Quality):
-  └── Tests (~30 new), examples, docs
+Phase 5 (Quality):
+  └── Tests (~40 new), examples, docs
 
-Phase 5 (Release):
+Phase 6 (Release):
   └── Version bump 0.7.0, CHANGELOG, PyPI
 ```
 
