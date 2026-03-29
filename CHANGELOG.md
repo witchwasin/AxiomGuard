@@ -6,6 +6,32 @@ This project follows [Semantic Versioning](https://semver.org/).
 
 ---
 
+## [0.6.0] - 2026-03-30
+
+### Added
+- **Temporal Reasoning** — `type: temporal` rules with Z3-powered time delta math. Supports event vs `system_time` (e.g., "review must be within 4h"), event vs event (e.g., "stay must be at least 1h"), and both min/max bounds. Human-readable delta format: `30s`, `5m`, `4h`, `7d`, `2w`. No LLM estimates passage of time — Z3 handles all calculations mathematically. (44 tests)
+- **Block-and-Escalate Mode** — `generate_with_guard(mode="block"|"escalate")` halts immediately on Z3 UNSAT instead of retrying. `mode="escalate"` additionally calls an `on_escalate` callback for routing to human review queues. Default `mode="correct"` preserves existing retry behavior (backward compatible).
+- **Structured Input Path** — `verify_structured()` accepts `Claim` objects or plain dicts (JSON API compatible), bypassing LLM extraction entirely. Goes straight to entity resolution + Z3 verification. Supports `system_time` for temporal rules.
+- **Negation Rules** — `type: negation` with `must_not_include` for human-readable prohibitions. Single value or list. Z3 proves forbidden values never appear. Auto-wraps string to list.
+- **Conditional Forbid** — Dependency rules now support `then.forbid` alongside `then.require`. When condition is met, specified values are forbidden (e.g., allergy cross-reactivity).
+- **Extraction Bias Audit** — `audit_extraction_bias()` performs deterministic keyword check for protected attributes (gender, race, religion, age, disability) in extracted claims. No LLM — pure pattern matching. Customizable attribute sets.
+- **Confidence Scoring** — `Claim.confidence` field (0.0-1.0). `score_claim_confidence()` detects hedge words ("maybe", "probably", "appears") and lowers confidence to 0.3. `filter_low_confidence()` splits claims for human review vs Z3.
+- **Enhanced Normalization** — `normalize_enhanced()` strips titles (Dr., Prof.), suffixes (Jr., PhD, Inc.), and articles (the, a, an) deterministically.
+- **Claim Classification** — `RelationDef` in YAML with `category: definitional | contingent | normative_risk` (Resnik 2025). `KnowledgeBase.relation_category()` accessor. Optional and backward compatible.
+- **Tournament Mode Engine** — Multi-strategy candidate generation, Z3 conflict detection, human arbitration (v0.7.0 feature, engine ready). 36 tests.
+
+### Research
+- Tournament-style rule derivation research doc (`docs/research/v070_tournament_rule_derivation.md`)
+- Roadmap updated with Resnik (2025) bias insights across v0.6.0–v1.0.0
+
+### Changed
+- Test count: 71 → 233 (162 new tests)
+- `ThenClause` now supports optional `require` and `forbid` (was require-only)
+- `Rule` union includes `NegationRule` and `TemporalRule`
+- `KnowledgeBase.verify()` accepts optional `system_time` parameter
+
+---
+
 ## [0.5.1] - 2026-03-28
 
 ### Added

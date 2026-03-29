@@ -57,7 +57,7 @@ from axiomguard.tournament import Tournament
 # --- Entity resolution ---
 from axiomguard.resolver import EntityResolver
 
-__version__ = "0.5.1"
+__version__ = "0.6.0"
 
 __all__ = [
     # Core API
