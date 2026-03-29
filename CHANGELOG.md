@@ -6,6 +6,16 @@ This project follows [Semantic Versioning](https://semver.org/).
 
 ---
 
+## [0.6.2] - 2026-03-30
+
+### Fixed
+- Bias audit false positives: word boundary matching prevents "man" from matching "permanently"
+
+### Added
+- Mars Rover edge safety demo (`examples/rover_edge_system.py` + `rover_safety_policy.axiom.yml`)
+
+---
+
 ## [0.6.1] - 2026-03-30
 
 ### Fixed
