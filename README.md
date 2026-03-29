@@ -357,10 +357,10 @@ UNTRUSTED (must audit):
 ## Roadmap
 
 - [x] **v0.5.1** — Core engine, self-correction, PyPI, 71 tests
-- [ ] **v0.6.0** — Hardened enforcement: deterministic errors, audit trail, date-bounds, negation
-- [ ] **v0.7.0** — Advanced rules, Axiom Studio (visual rule editor), LangChain/LlamaIndex
+- [x] **v0.6.0** — Hardened enforcement: temporal reasoning (Z3 time-delta math), block-and-escalate mode, structured input path, negation rules, extraction bias audit, confidence scoring, claim classification. **233 tests.**
+- [ ] **v0.7.0** — Tournament mode (multi-strategy rule derivation), advanced rules, Axiom Studio, LangChain/LlamaIndex
 - [ ] **v0.8.0** — Performance: caching, parallel verification
-- [ ] **v0.9.0** — Benchmarks against real-world hallucination datasets
+- [ ] **v0.9.0** — Benchmarks against real-world hallucination + bias datasets
 - [ ] **v1.0.0** — Production release
 
 See the full **[Roadmap](docs/ROADMAP.md)** and **[Architecture Philosophy](docs/architecture_philosophy.md)**.
