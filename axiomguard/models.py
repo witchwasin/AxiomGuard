@@ -118,7 +118,7 @@ class CorrectionResult:
         final_verification: The last VerificationResult (None if unverifiable).
     """
 
-    status: Literal["verified", "corrected", "failed", "unverifiable", "constraint_conflict"]
+    status: Literal["verified", "corrected", "failed", "unverifiable", "constraint_conflict", "blocked"]
     response: str
     attempts: int
     max_attempts: int

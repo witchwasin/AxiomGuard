@@ -20,6 +20,7 @@ from axiomguard.core import (
     set_llm_backend,
     translate_to_logic,
     verify,
+    verify_structured,
     verify_with_kb,
 )
 
@@ -58,6 +59,7 @@ __version__ = "0.5.1"
 __all__ = [
     # Core API
     "verify",
+    "verify_structured",
     "verify_with_kb",
     "verify_chunks",
     "generate_with_guard",

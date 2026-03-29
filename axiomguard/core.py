@@ -11,7 +11,7 @@ The LLM backend is pluggable: swap via set_llm_backend() for real API clients.
 
 from __future__ import annotations
 
-from typing import Callable, List, Tuple
+from typing import Any, Callable, Dict, List, Optional, Tuple, Union
 
 from axiomguard.models import Claim, CorrectionAttempt, CorrectionResult, VerificationResult
 from axiomguard.resolver import EntityResolver
@@ -349,6 +349,126 @@ def verify_with_kb(
 
 
 # =====================================================================
+# Public API — Structured Input Path (v0.6.0)
+# =====================================================================
+
+
+def verify_structured(
+    response_claims: List[Union[Claim, Dict[str, Any]]],
+    axiom_claims: Optional[List[Union[Claim, Dict[str, Any]]]] = None,
+    kb=None,
+    system_time=None,
+) -> VerificationResult:
+    """Verify pre-structured claims directly — no LLM extraction (v0.6.0).
+
+    This is the "structured input path" that bypasses the LLM extractor
+    entirely. Use this when your upstream system already produces structured
+    claims (e.g., from constrained decoding, form inputs, or database queries).
+
+    Accepts claims as Claim objects or plain dicts with subject/relation/object keys.
+
+    Pipeline:
+      1. Parse input → list[Claim] (no LLM)
+      2. Resolve entities (EntityResolver — deterministic)
+      3. KnowledgeBase.verify() — YAML rules + Z3 (Math layer)
+
+    Args:
+        response_claims: Claims to verify. Each item is either a Claim object
+            or a dict with keys: subject, relation, object, and optionally negated.
+        axiom_claims: Optional ground-truth claims (same format as response_claims).
+        kb: KnowledgeBase to verify against. Uses global KB if None.
+        system_time: For temporal rules — str (ISO), datetime, int (epoch), or None.
+
+    Returns:
+        VerificationResult with violated_rules, custom messages, and proof trace.
+
+    Raises:
+        RuntimeError: If no KnowledgeBase is loaded and none is provided.
+        ValueError: If claims cannot be parsed.
+
+    Example::
+
+        from axiomguard import verify_structured, Claim
+
+        # With Claim objects
+        result = verify_structured(
+            response_claims=[
+                Claim(subject="patient", relation="takes", object="Aspirin"),
+            ],
+            axiom_claims=[
+                Claim(subject="patient", relation="takes", object="Warfarin"),
+            ],
+            kb=kb,
+        )
+
+        # With plain dicts (e.g., from JSON API)
+        result = verify_structured(
+            response_claims=[
+                {"subject": "patient", "relation": "takes", "object": "Aspirin"},
+            ],
+            axiom_claims=[
+                {"subject": "patient", "relation": "takes", "object": "Warfarin"},
+            ],
+            kb=kb,
+        )
+    """
+    active_kb = kb or _knowledge_base
+    if active_kb is None:
+        raise RuntimeError(
+            "No KnowledgeBase loaded. Call load_rules() or pass a KnowledgeBase."
+        )
+
+    # Parse claims
+    parsed_response = _parse_claim_inputs(response_claims)
+    parsed_axioms = _parse_claim_inputs(axiom_claims) if axiom_claims else None
+
+    # Resolve entities
+    resolved_response, warnings = active_kb.resolver.resolve_claims(parsed_response)
+    resolved_axioms = None
+    if parsed_axioms:
+        resolved_axioms, ax_warnings = active_kb.resolver.resolve_claims(parsed_axioms)
+        warnings.extend(ax_warnings)
+
+    # Verify with Z3
+    result = active_kb.verify(
+        resolved_response,
+        resolved_axioms,
+        system_time=system_time,
+    )
+    result.extraction_warnings = warnings + result.extraction_warnings
+    return result
+
+
+def _parse_claim_inputs(
+    claims: List[Union[Claim, Dict[str, Any]]],
+) -> List[Claim]:
+    """Convert mixed Claim/dict inputs to a list of Claim objects."""
+    parsed: List[Claim] = []
+    for i, item in enumerate(claims):
+        if isinstance(item, Claim):
+            parsed.append(item)
+        elif isinstance(item, dict):
+            try:
+                parsed.append(Claim(
+                    subject=item["subject"],
+                    relation=item["relation"],
+                    object=item["object"],
+                    negated=item.get("negated", False),
+                ))
+            except (KeyError, TypeError) as e:
+                raise ValueError(
+                    f"Claim at index {i} is missing required keys "
+                    f"(subject, relation, object): {e}"
+                ) from e
+        else:
+            raise ValueError(
+                f"Claim at index {i} must be a Claim object or dict, "
+                f"got {type(item).__name__}"
+            )
+    return parsed
+
+
+# =====================================================================
 # Public API — Self-Correction Loop (v0.5.0)
 # =====================================================================
 
@@ -360,35 +480,59 @@ def generate_with_guard(
     axiom_claims: list[Claim] | None = None,
     max_retries: int = 2,
     timeout_seconds: float = 30.0,
+    mode: str = "correct",
+    on_escalate: Callable | None = None,
 ) -> CorrectionResult:
-    """Generate an LLM response with automated self-correction (v0.5.0).
+    """Generate an LLM response with automated guardrails (v0.5.0, v0.6.0).
 
-    Pipeline per attempt:
-      1. llm_generate(current_prompt) -> raw response text
-      2. Extract claims from response
-      3. KB.verify(claims) -> VerificationResult
-      4. If SAT -> return immediately
-      5. If UNSAT -> build correction prompt -> retry
+    Three modes of operation:
 
-    Fail-safes:
-      - max_retries: hard cap on correction attempts (default: 2)
-      - timeout_seconds: wall-clock timeout for all attempts (default: 30s)
+      mode="correct" (default, v0.5.0):
+        Retry loop — if Z3 returns UNSAT, build correction prompt and retry.
+        Best for general-purpose chatbot use cases.
+
+      mode="block" (v0.6.0):
+        Block-and-halt — if Z3 returns UNSAT, immediately stop and return
+        a deterministic blocked result. No retries. Best for high-stakes
+        domains (medical, finance) where optimizing-to-pass is dangerous.
+
+      mode="escalate" (v0.6.0):
+        Block-and-escalate — same as "block", but also calls on_escalate
+        callback with the blocked result for external routing (webhook,
+        human review queue, incident system). Requires on_escalate parameter.
 
     Args:
         prompt: The user's original question/instruction.
         kb: Loaded KnowledgeBase with domain rules.
-        llm_generate: Function (str) -> str that calls any LLM. Provider-agnostic.
+        llm_generate: Function (str) -> str that calls any LLM.
         axiom_claims: Optional ground-truth facts to verify against.
-        max_retries: Maximum correction attempts after first generation (default: 2).
-        timeout_seconds: Wall-clock timeout for the entire call (default: 30s).
+        max_retries: Maximum correction attempts (default: 2). Ignored in block/escalate mode.
+        timeout_seconds: Wall-clock timeout for all attempts (default: 30s).
+        mode: "correct" | "block" | "escalate" (default: "correct").
+        on_escalate: Callback (CorrectionResult) -> None for escalate mode.
 
     Returns:
         CorrectionResult with status, final response, and full attempt history.
+
+    Raises:
+        ValueError: If mode is invalid or escalate mode lacks on_escalate callback.
     """
+    if mode not in ("correct", "block", "escalate"):
+        raise ValueError(
+            f"Invalid mode '{mode}'. Must be 'correct', 'block', or 'escalate'."
+        )
+    if mode == "escalate" and on_escalate is None:
+        raise ValueError("mode='escalate' requires an on_escalate callback.")
+
     import time
     from axiomguard.correction import build_correction_prompt
 
-    max_attempts = 1 + max_retries
+    # In block/escalate mode, only 1 attempt (no retries)
+    if mode in ("block", "escalate"):
+        max_attempts = 1
+    else:
+        max_attempts = 1 + max_retries
+
     history: list[CorrectionAttempt] = []
     current_prompt = prompt
     deadline = time.monotonic() + timeout_seconds
@@ -407,7 +551,6 @@ def generate_with_guard(
 
         # --- Step 3: Verify ---
         if not resolved_claims:
-            # No claims extracted — nothing to verify
             attempt = CorrectionAttempt(
                 attempt_number=attempt_num,
                 response=response_text,
@@ -439,7 +582,6 @@ def generate_with_guard(
 
         # --- Step 5: Check result ---
         if not verification.is_hallucinating:
-            # PASS
             status = "verified" if attempt_num == 1 else "corrected"
             return CorrectionResult(
                 status=status,
@@ -450,7 +592,21 @@ def generate_with_guard(
                 final_verification=verification,
             )
 
-        # --- Step 6: Build correction prompt for next attempt ---
+        # --- Step 6: Mode-specific handling of UNSAT ---
+        if mode in ("block", "escalate"):
+            result = CorrectionResult(
+                status="blocked",
+                response=response_text,
+                attempts=1,
+                max_attempts=1,
+                history=history,
+                final_verification=verification,
+            )
+            if mode == "escalate" and on_escalate is not None:
+                on_escalate(result)
+            return result
+
+        # mode="correct" — build correction prompt for next attempt
         if attempt_num < max_attempts and time.monotonic() < deadline:
             current_prompt = build_correction_prompt(
                 original_prompt=prompt,
@@ -461,8 +617,7 @@ def generate_with_guard(
                 max_attempts=max_attempts,
             )
 
-    # --- All attempts exhausted ---
-    # Detect constraint conflict: same violated rules on every attempt
+    # --- All attempts exhausted (only reachable in "correct" mode) ---
     if len(history) >= 2:
         violation_sets = []
         for h in history:
