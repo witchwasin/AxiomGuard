@@ -6,6 +6,13 @@ This project follows [Semantic Versioning](https://semver.org/).
 
 ---
 
+## [0.6.1] - 2026-03-30
+
+### Fixed
+- PyPI package now includes updated README with v0.6.0 roadmap checked off
+
+---
+
 ## [0.6.0] - 2026-03-30
 
 ### Added
