@@ -36,6 +36,26 @@ class EntityDef(BaseModel):
     description: str = ""
 
 
+class RelationDef(BaseModel):
+    """Relation definition with classification metadata (v0.6.0).
+
+    Categories (from Resnik 2025):
+      - definitional: Stable facts that don't change with context.
+        e.g., "a nurse is a healthcare worker"
+      - contingent: True now but could change. Safe to use per norms.
+        e.g., "nurses typically wear blue"
+      - normative_risk: Statistically true but normatively unacceptable to use.
+        e.g., "nurses are more likely to wear dresses"
+
+    When a claim uses a normative_risk relation, audit_extraction_bias()
+    can flag it for human review.
+    """
+
+    name: str = Field(min_length=1)
+    category: Literal["definitional", "contingent", "normative_risk"] = "contingent"
+    description: str = ""
+
+
 class TestExample(BaseModel):
     """Inline test case embedded in a rule for self-testing."""
 
@@ -355,6 +375,7 @@ class RuleSet(BaseModel):
     axiomguard: str = Field(description="Format version (e.g., '0.3')")
     domain: str = ""
     entities: list[EntityDef] = Field(default_factory=list)
+    relations: list[RelationDef] = Field(default_factory=list)
     rules: list[Rule] = Field(min_length=1)
 
 

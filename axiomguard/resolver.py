@@ -155,9 +155,46 @@ class EntityResolver:
 # =====================================================================
 
 
+# Titles and suffixes to strip during enhanced normalization
+_TITLES = {"dr.", "dr", "mr.", "mr", "mrs.", "mrs", "ms.", "ms", "prof.", "prof",
+           "sir", "dame", "rev.", "rev", "hon.", "hon"}
+_SUFFIXES = {"jr.", "jr", "sr.", "sr", "ii", "iii", "iv", "phd", "md", "esq",
+             "inc.", "inc", "ltd.", "ltd", "corp.", "corp", "llc"}
+_ARTICLES = {"the", "a", "an"}
+
+
 def _normalize(text: str) -> str:
     """Unicode NFKC normalize + lowercase + strip."""
     return unicodedata.normalize("NFKC", text.strip().lower())
+
+
+def normalize_enhanced(text: str) -> str:
+    """Enhanced normalization: NFKC + lowercase + strip titles/suffixes/articles.
+
+    Deterministic — no ML involved.
+
+    Examples:
+        "Dr. Smith"     → "smith"
+        "The Company"   → "company"
+        "John Jr."      → "john"
+        "Prof. Somchai" → "somchai"
+    """
+    normalized = _normalize(text)
+    words = normalized.split()
+
+    # Strip leading articles
+    while words and words[0] in _ARTICLES:
+        words.pop(0)
+
+    # Strip leading titles
+    while words and words[0] in _TITLES:
+        words.pop(0)
+
+    # Strip trailing suffixes
+    while words and words[-1] in _SUFFIXES:
+        words.pop()
+
+    return " ".join(words) if words else normalized
 
 
 def _looks_canonical(text: str) -> bool:

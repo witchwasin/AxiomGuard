@@ -13,9 +13,11 @@ Quickstart::
 from axiomguard.core import (
     audit_extraction_bias,
     extract_claims,
+    filter_low_confidence,
     generate_with_guard,
     get_knowledge_base,
     load_rules,
+    score_claim_confidence,
     set_entity_resolver,
     set_knowledge_base,
     set_llm_backend,
@@ -30,7 +32,7 @@ from axiomguard.integration import verify_chunks, verification_stats
 
 # --- Knowledge base & rule engine ---
 from axiomguard.knowledge_base import KnowledgeBase
-from axiomguard.parser import AxiomParser, NegationRule, RangeRule, RuleSet, TemporalRule
+from axiomguard.parser import AxiomParser, NegationRule, RangeRule, RelationDef, RuleSet, TemporalRule
 
 # --- Data models ---
 from axiomguard.models import (
@@ -60,6 +62,8 @@ __version__ = "0.5.1"
 __all__ = [
     # Core API
     "audit_extraction_bias",
+    "filter_low_confidence",
+    "score_claim_confidence",
     "verify",
     "verify_structured",
     "verify_with_kb",
@@ -85,6 +89,7 @@ __all__ = [
     "AxiomParser",
     "NegationRule",
     "RangeRule",
+    "RelationDef",
     "RuleSet",
     "TemporalRule",
     # Rule generation

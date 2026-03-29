@@ -349,6 +349,67 @@ def verify_with_kb(
 
 
 # =====================================================================
+# Confidence Scoring (v0.6.0)
+# =====================================================================
+
+HEDGE_WORDS = frozenset({
+    "maybe", "perhaps", "possibly", "probably", "likely", "unlikely",
+    "might", "could", "may", "approximately", "roughly", "around",
+    "about", "estimated", "uncertain", "unclear", "alleged", "reportedly",
+    "supposedly", "apparently", "seems", "appears", "suggest", "suggests",
+    "i think", "i believe", "not sure", "not certain",
+})
+
+LOW_CONFIDENCE_THRESHOLD = 0.5
+
+
+def score_claim_confidence(claim: Claim) -> Claim:
+    """Score a claim's confidence based on hedge word detection (v0.6.0).
+
+    Scans the claim's subject and object for hedge words that indicate
+    uncertainty. If found, reduces confidence to 0.3 (low). Otherwise
+    keeps the existing confidence value.
+
+    This is deterministic — no LLM involved.
+
+    Args:
+        claim: The claim to score.
+
+    Returns:
+        The same claim with updated confidence field.
+    """
+    text = f"{claim.subject} {claim.object}".lower()
+    for hedge in HEDGE_WORDS:
+        if hedge in text:
+            claim.confidence = 0.3
+            return claim
+    return claim
+
+
+def filter_low_confidence(
+    claims: List[Claim],
+    threshold: float = LOW_CONFIDENCE_THRESHOLD,
+) -> tuple:
+    """Split claims into high-confidence (→ Z3) and low-confidence (→ human review).
+
+    Args:
+        claims: List of claims with confidence scores.
+        threshold: Claims below this threshold are routed to human review.
+
+    Returns:
+        Tuple of (high_confidence_claims, low_confidence_claims).
+    """
+    high: List[Claim] = []
+    low: List[Claim] = []
+    for claim in claims:
+        if claim.confidence >= threshold:
+            high.append(claim)
+        else:
+            low.append(claim)
+    return high, low
+
+
+# =====================================================================
 # Extraction Bias Audit (v0.6.0)
 # =====================================================================
 

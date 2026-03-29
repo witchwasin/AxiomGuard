@@ -32,6 +32,14 @@ class Claim(BaseModel):
     relation: str = Field(min_length=1, description="Relation type (location, identity, ...)")
     object: str = Field(min_length=1, description="Concrete value or entity")
     negated: bool = Field(default=False, description="True if the claim is a negation")
+    confidence: float = Field(
+        default=1.0,
+        ge=0.0,
+        le=1.0,
+        description="Extraction confidence (0.0-1.0). Low values flag "
+        "uncertain extractions for human review before Z3. "
+        "1.0 = certain (default), < 0.5 = low confidence.",
+    )
 
     def as_key(self) -> tuple[str, str, str]:
         """Normalized dedup key — order-independent for subject/object."""

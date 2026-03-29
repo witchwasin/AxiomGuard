@@ -136,6 +136,8 @@ class KnowledgeBase:
         self._rule_meta: list[dict] = []
         # Rule objects for violation matching
         self._loaded_rules: list = []
+        # Relation classification metadata (v0.6.0)
+        self._relation_categories: dict[str, str] = {}
 
     @property
     def resolver(self) -> EntityResolver:
@@ -193,8 +195,18 @@ class KnowledgeBase:
         for entity in ruleset.entities:
             alias_map = {alias: entity.name for alias in entity.aliases}
             self._resolver.add_aliases(alias_map)
+        for rel_def in ruleset.relations:
+            self._relation_categories[rel_def.name] = rel_def.category
         for rule in ruleset.rules:
             self.add_rule(rule)
+
+    def relation_category(self, relation: str) -> str:
+        """Get the classification category of a relation (v0.6.0).
+
+        Returns "definitional", "contingent", or "normative_risk".
+        Defaults to "contingent" if not declared in YAML.
+        """
+        return self._relation_categories.get(relation, "contingent")
 
     # =================================================================
     # Numeric Attribute Functions (v0.4.0)
