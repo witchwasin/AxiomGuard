@@ -47,6 +47,9 @@ from axiomguard.rule_generator import (
     generate_rules_to_kb,
 )
 
+# --- Tournament mode (Mode 4) ---
+from axiomguard.tournament import Tournament
+
 # --- Entity resolution ---
 from axiomguard.resolver import EntityResolver
 
@@ -83,6 +86,8 @@ __all__ = [
     "generate_rules",
     "generate_rules_to_file",
     "generate_rules_to_kb",
+    # Tournament mode
+    "Tournament",
     # Entity resolution
     "EntityResolver",
 ]
