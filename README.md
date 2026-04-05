@@ -363,7 +363,7 @@ UNTRUSTED (must audit):
 - [x] **v0.7.1** — Conditional chains, code review hardening (17 fixes across CRITICAL/HIGH/MEDIUM), **329 tests.**
 - [x] **v0.7.2** — Document Ingestion pipeline (PDF/DOCX with provenance), stale rule detection. **355 tests.**
 - [ ] **v0.8.0** — Performance (Z3 caching, parallel verification), instance-based state (thread-safe), structured logging (JSON), graceful degradation, REST API (FastAPI), Extraction Inspector (Claim Table + Confidence Badge)
-- [ ] **v0.9.0** — Benchmarks (HaluEval, TruthfulQA), real LLM integration tests, property-based testing (Hypothesis), Violation Analytics
+- [ ] **v0.9.0** — Benchmarks (HaluEval, TruthfulQA), real LLM integration tests (Claude, GPT-4o), batch verification (1000+ claims), property-based testing (Hypothesis), Violation Analytics, Metacognition benchmark suite
 - [ ] **v1.0.0** — Production release, case studies (Thai banking compliance, EHR medication safety), Axiom Studio v2 (React/Next.js + Dark Mode + Drag-and-Drop)
 
 See the full **[Roadmap](docs/ROADMAP.md)** and **[Architecture Philosophy](docs/architecture_philosophy.md)**.
