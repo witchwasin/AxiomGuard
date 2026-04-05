@@ -44,6 +44,10 @@ from axiomguard.parser import (
     TemporalRule,
 )
 
+# --- Document Ingestion (v0.7.2) ---
+from axiomguard.document_parser import DocumentParser, DocumentSource, DocumentLocation
+from axiomguard.staleness import StaleRuleDetector, StalenessReport
+
 # --- Data models ---
 from axiomguard.models import (
     Claim,
@@ -67,7 +71,7 @@ from axiomguard.tournament import Tournament
 # --- Entity resolution ---
 from axiomguard.resolver import EntityResolver
 
-__version__ = "0.7.1"
+__version__ = "0.7.2"
 
 __all__ = [
     # Core API

@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "axiomguard"
-version = "0.7.1"
+version = "0.7.2"
 description = "Deterministic Neuro-Symbolic Guardrails for Enterprise AI."
 readme = "README.md"
 license = "MIT"
@@ -52,6 +52,7 @@ qdrant = ["qdrant-client>=1.7.0"]
 langchain = ["langchain-core>=0.3.0"]
 llamaindex = ["llama-index-core>=0.11.0"]
 studio = ["streamlit>=1.30.0"]
+ingestion = ["pdfplumber>=0.9.0", "python-docx>=0.8.11"]
 all = [
     "anthropic>=0.39.0",
     "openai>=1.0.0",
@@ -60,6 +61,8 @@ all = [
     "langchain-core>=0.3.0",
     "llama-index-core>=0.11.0",
     "streamlit>=1.30.0",
+    "pdfplumber>=0.9.0",
+    "python-docx>=0.8.11",
 ]
 
 [project.urls]

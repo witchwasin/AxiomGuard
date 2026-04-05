@@ -57,6 +57,7 @@ from axiomguard.parser import (
     Rule,
     UniqueRule,
 )
+from axiomguard.document_parser import DocumentLocation, DocumentSource
 from axiomguard.rule_generator import _RULE_GEN_PROMPT, _clean_yaml_output, _validate_yaml
 
 
@@ -132,6 +133,8 @@ class CandidateRule(BaseModel):
     rule: Rule
     strategy: str
     source_excerpt: str = ""
+    source_page: Optional[int] = None
+    source_section: Optional[str] = None
     status: Literal[
         "pending",
         "in_conflict",
@@ -169,6 +172,10 @@ class TournamentAudit(BaseModel):
 
     domain: str
     source_document_hash: str
+    source_path: str = ""
+    source_type: str = ""
+    source_segment_hashes: Dict[str, str] = Field(default_factory=dict)
+    total_pages: Optional[int] = None
     generated_at: str
     strategies_used: list[str]
     total_candidates: int
@@ -197,11 +204,17 @@ class Tournament:
 
     def __init__(
         self,
-        source: str,
+        source: "str | DocumentSource",
         domain: str = "tournament",
         strategies: Optional[List[str]] = None,
     ) -> None:
-        self._source = source
+        # Accept str or DocumentSource (backward compatible)
+        if isinstance(source, str):
+            from axiomguard.document_parser import DocumentParser
+            self._source_doc = DocumentParser.from_text(source)
+        else:
+            self._source_doc = source
+        self._source = self._source_doc.content
         self._domain = domain
         self._strategies = strategies or ALL_STRATEGIES
         self._parser = AxiomParser()
@@ -742,6 +755,12 @@ class Tournament:
         return TournamentAudit(
             domain=self._domain,
             source_document_hash=self._source_hash(),
+            source_path=self._source_doc.path,
+            source_type=self._source_doc.source_type,
+            source_segment_hashes={
+                str(k): v for k, v in self._source_doc.segment_hashes.items()
+            },
+            total_pages=self._source_doc.total_pages,
             generated_at=self._generated_at,
             strategies_used=list(self._strategies),
             total_candidates=len(self._candidates),
@@ -761,7 +780,7 @@ class Tournament:
         return rule.model_dump(exclude_defaults=False, exclude_none=True)
 
     def _source_hash(self) -> str:
-        return hashlib.sha256(self._source.encode("utf-8")).hexdigest()[:16]
+        return self._source_doc.document_hash
 
     # =================================================================
     # Accessors

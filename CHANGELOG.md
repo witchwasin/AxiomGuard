@@ -6,6 +6,31 @@ This project follows [Semantic Versioning](https://semver.org/).
 
 ---
 
+## [0.7.2] - 2026-04-06
+
+### Added
+- **Document Ingestion Pipeline** (`axiomguard/document_parser.py`):
+  - `DocumentParser` — parse PDF (via pdfplumber), DOCX (via python-docx), and plain text with provenance
+  - `DocumentSource` — container with content, path, segments, document hash
+  - `DocumentLocation` — provenance metadata (page number, section name, content hash)
+  - `DocumentParser.from_file()` — auto-detect file type
+  - Tournament now accepts `str | DocumentSource` (backward compatible)
+- **Stale Rule Detection** (`axiomguard/staleness.py`):
+  - `StaleRuleDetector.compare()` — compare two tournament audits, identify changed/added/removed segments
+  - `StaleRuleDetector.quick_check()` — fast hash comparison
+  - `StalenessReport` — detailed report with is_stale, summary, stale_candidates
+- `TournamentAudit` now includes: source_path, source_type, source_segment_hashes, total_pages
+- `CandidateRule` now includes: source_page, source_section
+- New optional dep: `pip install "axiomguard[ingestion]"` (pdfplumber + python-docx)
+- 26 new tests
+
+### Changed
+- `Tournament.__init__()` accepts `str | DocumentSource` (backward compatible)
+- `Tournament._source_hash()` uses DocumentSource.document_hash
+- Test count: 329 → 355
+
+---
+
 ## [0.7.1] - 2026-04-06
 
 ### Added
