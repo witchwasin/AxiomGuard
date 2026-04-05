@@ -357,11 +357,13 @@ UNTRUSTED (must audit):
 ## Roadmap
 
 - [x] **v0.5.1** — Core engine, self-correction, PyPI, 71 tests
-- [x] **v0.6.0** — Hardened enforcement: temporal reasoning (Z3 time-delta math), block-and-escalate mode, structured input path, negation rules, extraction bias audit, confidence scoring, claim classification. **233 tests.**
-- [ ] **v0.7.0** — Tournament mode (multi-strategy rule derivation), advanced rules, Axiom Studio, LangChain/LlamaIndex
-- [ ] **v0.8.0** — Performance: caching, parallel verification
-- [ ] **v0.9.0** — Benchmarks against real-world hallucination + bias datasets
-- [ ] **v1.0.0** — Production release
+- [x] **v0.6.0** — Hardened enforcement: temporal reasoning, block-and-escalate, negation rules, bias audit, confidence scoring. **233 tests.**
+- [x] **v0.6.3** — Test suite hardening, configurable Z3 timeouts. **246 tests.**
+- [x] **v0.7.0** — Advanced rules (comparison, cardinality, composition), LangChain/LlamaIndex integration, Axiom Studio. **309 tests.**
+- [ ] **v0.7.1** — Document Ingestion pipeline, stale rule detection, Metacognition benchmark integration
+- [ ] **v0.8.0** — Performance (Z3 caching, parallel verification), instance-based state (thread-safe), structured logging (JSON), graceful degradation, REST API (FastAPI)
+- [ ] **v0.9.0** — Benchmarks (HaluEval, TruthfulQA), real LLM integration tests, property-based testing (Hypothesis)
+- [ ] **v1.0.0** — Production release, case studies (Thai banking compliance, EHR medication safety), polished Axiom Studio
 
 See the full **[Roadmap](docs/ROADMAP.md)** and **[Architecture Philosophy](docs/architecture_philosophy.md)**.
 
