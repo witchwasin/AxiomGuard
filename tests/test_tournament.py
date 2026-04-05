@@ -265,8 +265,8 @@ class TestConflictDetection:
                 for cid in c.candidate_ids
             )
         ]
-        # The two range rules on employment_months may conflict or be detected as subsumption
-        assert len(employment_conflicts) >= 0  # Depends on Z3 behavior with ranges
+        # The two range rules on employment_months should conflict (min:6 vs min:3)
+        assert len(employment_conflicts) > 0, "Expected conflict between c_min_employment and x_guarantor_override"
 
     def test_standalone_candidates_marked(self):
         t = Tournament(source="test", strategies=["constraints"])
@@ -320,97 +320,97 @@ class TestArbitration:
     def test_approve_standalone(self):
         t = self._setup_tournament_with_conflicts()
         standalone = t.standalone_candidates()
+        assert len(standalone) > 0, "Setup failed: no standalone candidates generated"
 
-        if standalone:
-            cid = standalone[0].id
-            t.approve(cid)
-            assert t.candidate(cid).status == "approved"
+        cid = standalone[0].id
+        t.approve(cid)
+        assert t.candidate(cid).status == "approved"
 
     def test_reject_candidate(self):
         t = self._setup_tournament_with_conflicts()
         standalone = t.standalone_candidates()
+        assert len(standalone) > 0, "Setup failed: no standalone candidates generated"
 
-        if standalone:
-            cid = standalone[0].id
-            t.reject(cid, reason="Not relevant")
-            assert t.candidate(cid).status == "rejected"
+        cid = standalone[0].id
+        t.reject(cid, reason="Not relevant")
+        assert t.candidate(cid).status == "rejected"
 
     def test_approve_all_standalone(self):
         t = self._setup_tournament_with_conflicts()
         count = t.approve_all_standalone()
 
+        assert count > 0, "Expected at least one standalone candidate to approve"
         for c in t.candidates():
             if c.strategy != "adversarial" or c.status != "standalone":
                 pass  # some may be in_conflict
-        assert count >= 0
 
     def test_decide_pick_winner(self):
         t = self._setup_tournament_with_conflicts()
         conflicts = t.conflicts()
+        assert len(conflicts) > 0, "Setup failed: no conflicts generated"
 
-        if conflicts:
-            conflict = conflicts[0]
-            winner = conflict.candidate_ids[0]
-            t.decide(
-                conflict_id=conflict.id,
-                action="pick_winner",
-                winner_id=winner,
-                reason="Correct per policy document",
-            )
-            assert t.candidate(winner).status == "approved"
-            for cid in conflict.candidate_ids:
-                if cid != winner:
-                    assert t.candidate(cid).status == "rejected"
+        conflict = conflicts[0]
+        winner = conflict.candidate_ids[0]
+        t.decide(
+            conflict_id=conflict.id,
+            action="pick_winner",
+            winner_id=winner,
+            reason="Correct per policy document",
+        )
+        assert t.candidate(winner).status == "approved"
+        for cid in conflict.candidate_ids:
+            if cid != winner:
+                assert t.candidate(cid).status == "rejected"
 
     def test_decide_reject_both(self):
         t = self._setup_tournament_with_conflicts()
         conflicts = t.conflicts()
+        assert len(conflicts) > 0, "Setup failed: no conflicts generated"
 
-        if conflicts:
-            conflict = conflicts[0]
-            t.decide(conflict_id=conflict.id, action="reject_both")
-            for cid in conflict.candidate_ids:
-                assert t.candidate(cid).status == "rejected"
+        conflict = conflicts[0]
+        t.decide(conflict_id=conflict.id, action="reject_both")
+        for cid in conflict.candidate_ids:
+            assert t.candidate(cid).status == "rejected"
 
     def test_decide_rewrite(self):
         t = self._setup_tournament_with_conflicts()
         conflicts = t.conflicts()
+        assert len(conflicts) > 0, "Setup failed: no conflicts generated"
 
-        if conflicts:
-            conflict = conflicts[0]
-            rewrite = {
-                "name": "human_combined_rule",
-                "type": "range",
-                "entity": "applicant",
-                "relation": "employment_months",
-                "value_type": "int",
-                "min": 6,
-                "severity": "error",
-                "message": "Default: 6 months. With guarantor: see exception.",
-            }
-            t.decide(
-                conflict_id=conflict.id,
-                action="rewrite",
-                rewrite_rule=rewrite,
-                reason="Combined both rules",
-            )
-            for cid in conflict.candidate_ids:
-                assert t.candidate(cid).status == "merged"
+        conflict = conflicts[0]
+        rewrite = {
+            "name": "human_combined_rule",
+            "type": "range",
+            "entity": "applicant",
+            "relation": "employment_months",
+            "value_type": "int",
+            "min": 6,
+            "severity": "error",
+            "message": "Default: 6 months. With guarantor: see exception.",
+        }
+        t.decide(
+            conflict_id=conflict.id,
+            action="rewrite",
+            rewrite_rule=rewrite,
+            reason="Combined both rules",
+        )
+        for cid in conflict.candidate_ids:
+            assert t.candidate(cid).status == "merged"
 
-            # Rewrite should be added as new approved candidate
-            approved = t.candidates(status="approved")
-            rewrite_candidates = [c for c in approved if c.strategy == "human_rewrite"]
-            assert len(rewrite_candidates) == 1
+        # Rewrite should be added as new approved candidate
+        approved = t.candidates(status="approved")
+        rewrite_candidates = [c for c in approved if c.strategy == "human_rewrite"]
+        assert len(rewrite_candidates) == 1
 
     def test_decide_approve_both(self):
         t = self._setup_tournament_with_conflicts()
         conflicts = t.conflicts()
+        assert len(conflicts) > 0, "Setup failed: no conflicts generated"
 
-        if conflicts:
-            conflict = conflicts[0]
-            t.decide(conflict_id=conflict.id, action="approve_both")
-            for cid in conflict.candidate_ids:
-                assert t.candidate(cid).status == "approved"
+        conflict = conflicts[0]
+        t.decide(conflict_id=conflict.id, action="approve_both")
+        for cid in conflict.candidate_ids:
+            assert t.candidate(cid).status == "approved"
 
     def test_invalid_conflict_id_raises(self):
         t = Tournament(source="test", strategies=["constraints"])
@@ -429,18 +429,18 @@ class TestArbitration:
     def test_pick_winner_requires_winner_id(self):
         t = self._setup_tournament_with_conflicts()
         conflicts = t.conflicts()
+        assert len(conflicts) > 0, "Setup failed: no conflicts generated"
 
-        if conflicts:
-            with pytest.raises(ValueError, match="winner_id"):
-                t.decide(conflict_id=conflicts[0].id, action="pick_winner")
+        with pytest.raises(ValueError, match="winner_id"):
+            t.decide(conflict_id=conflicts[0].id, action="pick_winner")
 
     def test_rewrite_requires_rule(self):
         t = self._setup_tournament_with_conflicts()
         conflicts = t.conflicts()
+        assert len(conflicts) > 0, "Setup failed: no conflicts generated"
 
-        if conflicts:
-            with pytest.raises(ValueError, match="rewrite_rule"):
-                t.decide(conflict_id=conflicts[0].id, action="rewrite")
+        with pytest.raises(ValueError, match="rewrite_rule"):
+            t.decide(conflict_id=conflicts[0].id, action="rewrite")
 
 
 # =====================================================================

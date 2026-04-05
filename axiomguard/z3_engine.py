@@ -19,6 +19,8 @@ import z3
 
 from axiomguard.models import Claim
 
+# Default Z3 solver timeout (milliseconds). Override via timeout_ms parameter.
+Z3_DEFAULT_TIMEOUT_MS = 2000
 
 # Relations where a subject can only have ONE object value.
 # e.g., a company can only have one location, one CEO, etc.
@@ -61,7 +63,7 @@ def _claim_to_z3(
 def check_claims(
     axiom_claims: list[Claim],
     response_claims: list[Claim],
-    timeout_ms: int = 2000,
+    timeout_ms: int = Z3_DEFAULT_TIMEOUT_MS,
 ) -> tuple[bool, str, list[int]]:
     """Verify response claims against axiom claims using Z3 Assumptions API.
 

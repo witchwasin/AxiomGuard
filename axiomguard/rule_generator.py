@@ -31,6 +31,7 @@ Usage (Mode 3 — Dynamic):
 from __future__ import annotations
 
 import json
+import logging
 import re
 from pathlib import Path
 from typing import Any, Callable, Optional
@@ -483,6 +484,8 @@ def _get_default_llm(model: str | None = None) -> Callable[[str], str]:
     """Try to find a working LLM backend from environment."""
     import os
 
+    logger = logging.getLogger(__name__)
+
     # Try Anthropic first
     if os.environ.get("ANTHROPIC_API_KEY"):
         try:
@@ -501,7 +504,7 @@ def _get_default_llm(model: str | None = None) -> Callable[[str], str]:
 
             return _anthropic_generate
         except ImportError:
-            pass
+            logger.debug("anthropic package not installed, trying openai")
 
     # Try OpenAI
     if os.environ.get("OPENAI_API_KEY"):
@@ -521,7 +524,7 @@ def _get_default_llm(model: str | None = None) -> Callable[[str], str]:
 
             return _openai_generate
         except ImportError:
-            pass
+            logger.debug("openai package not installed, no LLM backends available")
 
     raise RuntimeError(
         "No LLM backend available for rule generation. Either:\n"

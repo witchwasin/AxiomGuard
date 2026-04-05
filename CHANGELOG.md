@@ -6,6 +6,22 @@ This project follows [Semantic Versioning](https://semver.org/).
 
 ---
 
+## [0.6.3] - 2026-04-06
+
+### Fixed
+- **Degenerate assertions** in `test_tournament.py`: replaced `assert >= 0` (always-true) with meaningful assertions that verify actual expected values (lines 269, 345)
+- **Silent-pass guards** in `test_tournament.py`: 8 tests now assert preconditions instead of silently passing when setup produces empty results
+- **Silent import failures** in `rule_generator.py`: added `logging.debug()` when Anthropic/OpenAI imports fail, replacing bare `except ImportError: pass`
+
+### Changed
+- **Z3 timeout constants**: extracted hardcoded timeouts into configurable module-level constants (`Z3_DEFAULT_TIMEOUT_MS` in z3_engine.py, `Z3_CONFLICT_TIMEOUT_MS` and `Z3_REDUNDANCY_TIMEOUT_MS` in tournament.py) with unchanged default values
+- Version bumped across `pyproject.toml`, `setup.py`, `__init__.py`
+
+### Acknowledgements
+- Test suite reliability findings reported by [@SoliareofAstora](https://github.com/SoliareofAstora) in [#2](https://github.com/witchwasin/AxiomGuard/issues/2)
+
+---
+
 ## [0.6.2] - 2026-03-30
 
 ### Fixed

@@ -60,6 +60,11 @@ from axiomguard.parser import (
 from axiomguard.rule_generator import _RULE_GEN_PROMPT, _clean_yaml_output, _validate_yaml
 
 
+# Z3 timeout defaults for tournament operations (milliseconds).
+# Override by passing timeout_ms to KnowledgeBase.verify() calls.
+Z3_CONFLICT_TIMEOUT_MS = 500
+Z3_REDUNDANCY_TIMEOUT_MS = 200
+
 # =====================================================================
 # Strategy Prompt Directives
 # =====================================================================
@@ -372,7 +377,7 @@ class Tournament:
         result = kb.verify(
             response_claims=test_claims,
             axiom_claims=[],
-            timeout_ms=500,
+            timeout_ms=Z3_CONFLICT_TIMEOUT_MS,
         )
         return result.is_hallucinating
 
@@ -402,8 +407,8 @@ class Tournament:
         results_a = []
         results_b = []
         for claim_set in test_claims:
-            ra = kb_a.verify(response_claims=claim_set, timeout_ms=200)
-            rb = kb_b.verify(response_claims=claim_set, timeout_ms=200)
+            ra = kb_a.verify(response_claims=claim_set, timeout_ms=Z3_REDUNDANCY_TIMEOUT_MS)
+            rb = kb_b.verify(response_claims=claim_set, timeout_ms=Z3_REDUNDANCY_TIMEOUT_MS)
             results_a.append(ra.is_hallucinating)
             results_b.append(rb.is_hallucinating)
 

@@ -33,6 +33,7 @@ from axiomguard.parser import (
     parse_delta,
 )
 from axiomguard.resolver import EntityResolver
+from axiomguard.z3_engine import Z3_DEFAULT_TIMEOUT_MS
 
 
 # =====================================================================
@@ -457,7 +458,7 @@ class KnowledgeBase:
         self,
         response_claims: list[Claim],
         axiom_claims: list[Claim] | None = None,
-        timeout_ms: int = 2000,
+        timeout_ms: int = Z3_DEFAULT_TIMEOUT_MS,
         system_time: Optional[Union[str, datetime, int]] = None,
     ) -> VerificationResult:
         # Resolve entities
