@@ -32,7 +32,17 @@ from axiomguard.integration import verify_chunks, verification_stats
 
 # --- Knowledge base & rule engine ---
 from axiomguard.knowledge_base import KnowledgeBase
-from axiomguard.parser import AxiomParser, NegationRule, RangeRule, RelationDef, RuleSet, TemporalRule
+from axiomguard.parser import (
+    AxiomParser,
+    CardinalityRule,
+    ComparisonRule,
+    CompositionRule,
+    NegationRule,
+    RangeRule,
+    RelationDef,
+    RuleSet,
+    TemporalRule,
+)
 
 # --- Data models ---
 from axiomguard.models import (
@@ -57,7 +67,7 @@ from axiomguard.tournament import Tournament
 # --- Entity resolution ---
 from axiomguard.resolver import EntityResolver
 
-__version__ = "0.6.3"
+__version__ = "0.7.0"
 
 __all__ = [
     # Core API

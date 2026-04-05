@@ -9,7 +9,7 @@ from setuptools import setup, find_packages
 
 setup(
     name="axiomguard",
-    version="0.6.3",
+    version="0.7.0",
     author="Witchwasin K.",
     author_email="witchwasin@gmail.com",
     description="Deterministic Neuro-Symbolic Guardrails for Enterprise AI.",

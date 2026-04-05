@@ -355,11 +355,142 @@ class TemporalRule(_RuleBase):
 
 
 # =====================================================================
+# v0.7.0 — Advanced Rule Types
+# =====================================================================
+
+
+class ComparisonOperand(BaseModel):
+    """One side of a comparison rule (left or right)."""
+
+    relation: str = Field(min_length=1)
+    value_type: Literal["int", "float"] = "int"
+    multiplier: Optional[float] = None
+
+
+class ComparisonRule(_RuleBase):
+    """Cross-relation arithmetic: compare two numeric attributes.
+
+    Example YAML:
+        - name: Loan-to-income ratio
+          type: comparison
+          entity: applicant
+          left:
+            relation: loan_amount
+            value_type: int
+          operator: "<="
+          right:
+            relation: salary
+            multiplier: 5
+            value_type: int
+          message: "Loan amount must not exceed 5x monthly salary."
+    """
+
+    type: Literal["comparison"]
+    entity: str = Field(min_length=1)
+    left: ComparisonOperand
+    operator: Literal["==", "!=", "<", ">", "<=", ">="]
+    right: ComparisonOperand
+
+
+class CardinalityRule(_RuleBase):
+    """Count constraint: limit how many values an entity can have for a relation.
+
+    Example YAML:
+        - name: Max 2 primary diagnoses
+          type: cardinality
+          entity: patient
+          relation: primary_diagnosis
+          at_most: 2
+          message: "A patient can have at most 2 primary diagnoses."
+
+        - name: At least 1 emergency contact
+          type: cardinality
+          entity: employee
+          relation: emergency_contact
+          at_least: 1
+          message: "Every employee should have at least 1 emergency contact."
+    """
+
+    type: Literal["cardinality"]
+    entity: str = Field(min_length=1)
+    relation: str = Field(min_length=1)
+    at_most: Optional[int] = None
+    at_least: Optional[int] = None
+
+    @model_validator(mode="after")
+    def require_at_least_one_bound(self) -> "CardinalityRule":
+        if self.at_most is None and self.at_least is None:
+            raise ValueError(
+                f'Cardinality rule "{self.name}" must specify at least one of '
+                f"at_most or at_least."
+            )
+        return self
+
+
+class CompositeCondition(BaseModel):
+    """A single condition within all_of/any_of/none_of composition."""
+
+    entity: str = Field(min_length=1)
+    relation: str = Field(min_length=1)
+    value: str = Field(min_length=1)
+    operator: str = "="
+    value_type: Literal["string", "int", "float", "date"] = "string"
+
+
+class CompositionRule(_RuleBase):
+    """Composite condition rule: AND/OR/NOT logic over multiple conditions.
+
+    Example YAML:
+        - name: Elderly diabetic checkup
+          type: composition
+          all_of:
+            - entity: patient
+              relation: age
+              operator: ">"
+              value: "60"
+              value_type: int
+            - entity: patient
+              relation: condition
+              value: diabetes
+          then:
+            require:
+              relation: annual_checkup
+              value: required
+          message: "Elderly patients with diabetes must have annual checkups."
+    """
+
+    type: Literal["composition"]
+    all_of: Optional[list[CompositeCondition]] = None
+    any_of: Optional[list[CompositeCondition]] = None
+    none_of: Optional[list[CompositeCondition]] = None
+    then: ThenClause
+
+    @model_validator(mode="after")
+    def require_at_least_one_group(self) -> "CompositionRule":
+        if not self.all_of and not self.any_of and not self.none_of:
+            raise ValueError(
+                f'Composition rule "{self.name}" must specify at least one of '
+                f"all_of, any_of, or none_of."
+            )
+        return self
+
+
+# =====================================================================
 # Discriminated Union
 # =====================================================================
 
 Rule = Annotated[
-    Union[UniqueRule, ExclusionRule, DependencyRule, RangeRule, NegationRule, TemporalRule],
+    Union[
+        UniqueRule,
+        ExclusionRule,
+        DependencyRule,
+        RangeRule,
+        NegationRule,
+        TemporalRule,
+        ComparisonRule,
+        CardinalityRule,
+        CompositionRule,
+    ],
     Field(discriminator="type"),
 ]
 

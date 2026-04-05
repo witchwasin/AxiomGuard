@@ -6,6 +6,35 @@ This project follows [Semantic Versioning](https://semver.org/).
 
 ---
 
+## [0.7.0] - 2026-04-06
+
+### Added
+- **ComparisonRule** — cross-relation arithmetic with optional multiplier (e.g., `loan_amount <= 5 * salary`)
+- **CardinalityRule** — `at_most` / `at_least` constraints (e.g., max 2 primary diagnoses)
+- **CompositionRule** — AND/OR/NOT logic via `all_of`, `any_of`, `none_of` conditions with `then` clause
+- **LangChain Integration** (`axiomguard/integrations/langchain.py`):
+  - `AxiomGuardChain` — Runnable wrapping `generate_with_guard()`
+  - `AxiomGuardRetriever` — filters/annotates retrieved documents
+  - `AxiomGuardOutputParser` — verifies LLM output against rules
+- **LlamaIndex Integration** (`axiomguard/integrations/llamaindex.py`):
+  - `AxiomGuardPostprocessor` — node postprocessor with filter/annotate/strict modes
+  - `AxiomGuardQueryEngine` — query engine with self-correction loop
+- **Axiom Studio** (`axiom_studio.py` + `axiomguard_studio_core.py`):
+  - Streamlit-based visual rule editor
+  - Live YAML preview + download
+  - Claim testing with live Z3 verification
+  - YAML import/export
+- 63 new tests across 4 test files
+
+### Changed
+- `Rule` union type now includes `ComparisonRule`, `CardinalityRule`, `CompositionRule`
+- `axiom_relations()` includes relations from all new rule types
+- `_match_violated_rules()` handles all new rule types
+- New optional deps: `langchain`, `llamaindex`, `studio`
+- Test count: 246 → 309
+
+---
+
 ## [0.6.3] - 2026-04-06
 
 ### Fixed

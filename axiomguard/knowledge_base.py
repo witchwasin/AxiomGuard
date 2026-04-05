@@ -23,6 +23,10 @@ import z3
 from axiomguard.models import Claim, VerificationResult
 from axiomguard.parser import (
     AxiomParser,
+    CardinalityRule,
+    ComparisonRule,
+    CompositeCondition,
+    CompositionRule,
     DependencyRule,
     ExclusionRule,
     NegationRule,
@@ -175,6 +179,20 @@ class KnowledgeBase:
                 rels.add(rule.relation)
                 if rule.reference != "system_time":
                     rels.add(rule.reference)
+            elif isinstance(rule, ComparisonRule):
+                rels.add(rule.left.relation)
+                rels.add(rule.right.relation)
+            elif isinstance(rule, CardinalityRule):
+                rels.add(rule.relation)
+            elif isinstance(rule, CompositionRule):
+                for group in (rule.all_of, rule.any_of, rule.none_of):
+                    if group:
+                        for cond in group:
+                            rels.add(cond.relation)
+                if rule.then.require:
+                    rels.add(rule.then.require.relation)
+                if rule.then.forbid:
+                    rels.add(rule.then.forbid.relation)
         return rels
 
     # =================================================================
@@ -271,6 +289,12 @@ class KnowledgeBase:
         elif isinstance(rule, TemporalRule):
             constraints = self._compile_temporal(rule)
             self._has_temporal_rules = True
+        elif isinstance(rule, ComparisonRule):
+            constraints = self._compile_comparison(rule)
+        elif isinstance(rule, CardinalityRule):
+            constraints = self._compile_cardinality(rule)
+        elif isinstance(rule, CompositionRule):
+            constraints = self._compile_composition(rule)
         else:
             raise ValueError(f"Unknown rule type: {type(rule)}")
 
@@ -449,6 +473,150 @@ class KnowledgeBase:
 
         constraint = z3.And(*bounds) if len(bounds) > 1 else bounds[0]
         return [z3.ForAll([s], constraint)]
+
+    # =================================================================
+    # v0.7.0 — Advanced Rule Compilation
+    # =================================================================
+
+    def _compile_comparison(self, rule: ComparisonRule) -> list[z3.ExprRef]:
+        """comparison → ForAll([s], left_expr OP right_expr)
+
+        Cross-relation arithmetic with optional multiplier.
+        """
+        s = z3.Const("s", self._StringSort)
+        left_fn = self._get_numeric_attr(rule.left.relation, rule.left.value_type)
+        right_fn = self._get_numeric_attr(rule.right.relation, rule.right.value_type)
+
+        left_expr = left_fn(s)
+        right_expr = right_fn(s)
+
+        if rule.left.multiplier is not None:
+            m = rule.left.multiplier
+            left_expr = left_expr * (z3.IntVal(int(m)) if rule.left.value_type == "int" else z3.RealVal(str(m)))
+        if rule.right.multiplier is not None:
+            m = rule.right.multiplier
+            right_expr = right_expr * (z3.IntVal(int(m)) if rule.right.value_type == "int" else z3.RealVal(str(m)))
+
+        cmp_expr = self._apply_operator(left_expr, rule.operator, right_expr)
+        return [z3.ForAll([s], cmp_expr)]
+
+    def _compile_cardinality(self, rule: CardinalityRule) -> list[z3.ExprRef]:
+        """cardinality → bounded distinct-value constraints.
+
+        at_most N:  no (N+1) distinct values can coexist.
+        at_least N: at least N distinct values must exist (modeled as
+                    existence of N distinct constants).
+        """
+        R = self._Relation
+        s = z3.Const("s", self._StringSort)
+        rel = z3.StringVal(rule.relation)
+        constraints = []
+
+        if rule.at_most is not None:
+            n = rule.at_most
+            # Create N+1 distinct object variables
+            objs = [z3.Const(f"o_card_{i}", self._StringSort) for i in range(n + 1)]
+            # If all N+1 are asserted true, at least two must be equal
+            all_true = z3.And(*[R(rel, s, o) for o in objs])
+            some_equal = z3.Or(*[
+                objs[i] == objs[j]
+                for i in range(len(objs))
+                for j in range(i + 1, len(objs))
+            ])
+            constraints.append(
+                z3.ForAll([s] + objs, z3.Implies(all_true, some_equal))
+            )
+
+        if rule.at_least is not None:
+            n = rule.at_least
+            # Create N distinct object variables
+            objs = [z3.Const(f"o_exist_{i}", self._StringSort) for i in range(n)]
+            # There exist N distinct values that are all true
+            all_true = z3.And(*[R(rel, s, o) for o in objs])
+            all_distinct = z3.And(*[
+                objs[i] != objs[j]
+                for i in range(len(objs))
+                for j in range(i + 1, len(objs))
+            ])
+            constraints.append(
+                z3.ForAll([s], z3.Exists(objs, z3.And(all_true, all_distinct)))
+            )
+
+        return constraints
+
+    def _build_condition_expr(
+        self, cond: CompositeCondition, s: z3.ExprRef
+    ) -> z3.ExprRef:
+        """Convert a CompositeCondition to a Z3 expression."""
+        if cond.value_type != "string":
+            attr_fn = self._get_numeric_attr(cond.relation, cond.value_type)
+            z3_val = self._make_z3_val(cond.value, cond.value_type)
+            return self._apply_operator(attr_fn(s), cond.operator, z3_val)
+        else:
+            rel = z3.StringVal(cond.relation)
+            val = z3.StringVal(cond.value)
+            return self._Relation(rel, s, val)
+
+    def _compile_composition(self, rule: CompositionRule) -> list[z3.ExprRef]:
+        """composition → ForAll([s], Implies(combined_condition, then_expr))
+
+        Combines all_of (AND), any_of (OR), none_of (NOT OR) conditions.
+        """
+        s = z3.Const("s", self._StringSort)
+        parts = []
+
+        if rule.all_of:
+            exprs = [self._build_condition_expr(c, s) for c in rule.all_of]
+            parts.append(z3.And(*exprs) if len(exprs) > 1 else exprs[0])
+
+        if rule.any_of:
+            exprs = [self._build_condition_expr(c, s) for c in rule.any_of]
+            parts.append(z3.Or(*exprs) if len(exprs) > 1 else exprs[0])
+
+        if rule.none_of:
+            exprs = [self._build_condition_expr(c, s) for c in rule.none_of]
+            or_expr = z3.Or(*exprs) if len(exprs) > 1 else exprs[0]
+            parts.append(z3.Not(or_expr))
+
+        when_expr = z3.And(*parts) if len(parts) > 1 else parts[0]
+
+        # Build THEN clause
+        constraints = []
+        R = self._Relation
+
+        if rule.then.require is not None:
+            req = rule.then.require
+            if req.value_type != "string":
+                then_fn = self._get_numeric_attr(req.relation, req.value_type)
+                then_val = self._make_z3_val(req.value, req.value_type)
+                then_expr = self._apply_operator(then_fn(s), req.operator, then_val)
+            else:
+                then_expr = R(z3.StringVal(req.relation), s, z3.StringVal(req.value))
+            constraints.append(z3.ForAll([s], z3.Implies(when_expr, then_expr)))
+
+            # Auto-uniqueness for string-based 'then' relations
+            if req.value_type == "string":
+                o1 = z3.Const("o1", self._StringSort)
+                o2 = z3.Const("o2", self._StringSort)
+                then_rel = z3.StringVal(req.relation)
+                constraints.append(
+                    z3.ForAll(
+                        [s, o1, o2],
+                        z3.Implies(
+                            z3.And(R(then_rel, s, o1), R(then_rel, s, o2)),
+                            o1 == o2,
+                        ),
+                    )
+                )
+
+        if rule.then.forbid is not None:
+            for val in rule.then.forbid.values:
+                forbid_expr = z3.Not(
+                    R(z3.StringVal(rule.then.forbid.relation), s, z3.StringVal(val))
+                )
+                constraints.append(z3.ForAll([s], z3.Implies(when_expr, forbid_expr)))
+
+        return constraints
 
     # =================================================================
     # Verification
@@ -714,6 +882,31 @@ class KnowledgeBase:
                         rule.reference != "system_time"
                         and rc.relation == rule.reference
                     ):
+                        violated.append(meta)
+                        seen_rules.add(meta["name"])
+
+                elif isinstance(rule, ComparisonRule):
+                    if rc.relation in (rule.left.relation, rule.right.relation):
+                        violated.append(meta)
+                        seen_rules.add(meta["name"])
+
+                elif isinstance(rule, CardinalityRule):
+                    if rc.relation == rule.relation:
+                        violated.append(meta)
+                        seen_rules.add(meta["name"])
+
+                elif isinstance(rule, CompositionRule):
+                    # Match if claim touches any condition or then relation
+                    rels = set()
+                    for group in (rule.all_of, rule.any_of, rule.none_of):
+                        if group:
+                            for cond in group:
+                                rels.add(cond.relation)
+                    if rule.then.require:
+                        rels.add(rule.then.require.relation)
+                    if rule.then.forbid:
+                        rels.add(rule.then.forbid.relation)
+                    if rc.relation in rels:
                         violated.append(meta)
                         seen_rules.add(meta["name"])
 
