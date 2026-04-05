@@ -169,10 +169,28 @@ class ThenClause(BaseModel):
         return self
 
 
+class ChainStep(BaseModel):
+    """One step in a conditional chain: when → then."""
+
+    when: "ChainWhen"
+    then: ThenClause
+
+
+class ChainWhen(BaseModel):
+    """Simplified when condition for chain steps (inherits entity from parent)."""
+
+    relation: str = Field(min_length=1)
+    value: str = Field(min_length=1)
+    operator: str = "="
+    value_type: Literal["string", "int", "float", "date"] = "string"
+
+
 class DependencyRule(_RuleBase):
     """Implication rule: if condition A is true, then B must also be true.
 
-    Example YAML:
+    Supports optional chain for transitive dependencies: A → B → C.
+
+    Example YAML (simple):
         - name: Claim requires active policy
           type: dependency
           when:
@@ -183,11 +201,34 @@ class DependencyRule(_RuleBase):
             require:
               relation: policy_status
               value: active
+
+    Example YAML (chained):
+        - name: Loan approval chain
+          type: dependency
+          when:
+            entity: applicant
+            relation: credit_score
+            operator: "<"
+            value: "600"
+            value_type: int
+          then:
+            require:
+              relation: approval_status
+              value: manual_review
+          chain:
+            - when:
+                relation: approval_status
+                value: manual_review
+              then:
+                require:
+                  relation: reviewer_assigned
+                  value: required
     """
 
     type: Literal["dependency"]
     when: WhenCondition
     then: ThenClause
+    chain: Optional[list[ChainStep]] = None
 
 
 class RangeRule(_RuleBase):

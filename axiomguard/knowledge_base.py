@@ -170,7 +170,17 @@ class KnowledgeBase:
                 rels.add(rule.relation)
             elif isinstance(rule, DependencyRule):
                 rels.add(rule.when.relation)
-                rels.add(rule.then.require.relation)
+                if rule.then.require:
+                    rels.add(rule.then.require.relation)
+                if rule.then.forbid:
+                    rels.add(rule.then.forbid.relation)
+                if rule.chain:
+                    for step in rule.chain:
+                        rels.add(step.when.relation)
+                        if step.then.require:
+                            rels.add(step.then.require.relation)
+                        if step.then.forbid:
+                            rels.add(step.then.forbid.relation)
             elif isinstance(rule, RangeRule):
                 rels.add(rule.relation)
             elif isinstance(rule, NegationRule):
@@ -406,6 +416,54 @@ class KnowledgeBase:
                 constraints.append(
                     z3.ForAll([s], z3.Implies(when_expr, forbid_expr))
                 )
+
+        # --- Build CHAIN steps (v0.7.x) ---
+        if rule.chain:
+            for step in rule.chain:
+                cw = step.when
+                # Build chain WHEN expression (inherits entity from parent)
+                if cw.value_type != "string":
+                    chain_fn = self._get_numeric_attr(cw.relation, cw.value_type)
+                    chain_val = self._make_z3_val(cw.value, cw.value_type)
+                    chain_when = self._apply_operator(chain_fn(s), cw.operator, chain_val)
+                else:
+                    chain_when = R(z3.StringVal(cw.relation), s, z3.StringVal(cw.value))
+
+                # Build chain THEN REQUIRE
+                if step.then.require is not None:
+                    ct = step.then.require
+                    if ct.value_type != "string":
+                        ct_fn = self._get_numeric_attr(ct.relation, ct.value_type)
+                        ct_val = self._make_z3_val(ct.value, ct.value_type)
+                        chain_then = self._apply_operator(ct_fn(s), ct.operator, ct_val)
+                    else:
+                        chain_then = R(z3.StringVal(ct.relation), s, z3.StringVal(ct.value))
+
+                    constraints.append(
+                        z3.ForAll([s], z3.Implies(chain_when, chain_then))
+                    )
+                    # Auto-uniqueness for string chain then
+                    if ct.value_type == "string":
+                        ct_rel = z3.StringVal(ct.relation)
+                        constraints.append(
+                            z3.ForAll(
+                                [s, o1, o2],
+                                z3.Implies(
+                                    z3.And(R(ct_rel, s, o1), R(ct_rel, s, o2)),
+                                    o1 == o2,
+                                ),
+                            )
+                        )
+
+                # Build chain THEN FORBID
+                if step.then.forbid is not None:
+                    for val in step.then.forbid.values:
+                        chain_forbid = z3.Not(
+                            R(z3.StringVal(step.then.forbid.relation), s, z3.StringVal(val))
+                        )
+                        constraints.append(
+                            z3.ForAll([s], z3.Implies(chain_when, chain_forbid))
+                        )
 
         return constraints
 
