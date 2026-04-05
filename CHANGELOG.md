@@ -6,6 +6,33 @@ This project follows [Semantic Versioning](https://semver.org/).
 
 ---
 
+## [0.7.1] - 2026-04-06
+
+### Added
+- **Conditional Chains** — DependencyRule now supports `chain` field for transitive dependencies (A → B → C). Supports require + forbid in chain steps, multi-step chains, auto-uniqueness.
+
+### Fixed
+- **CRITICAL: at_least Z3 semantics** — Fixed incorrect ForAll+Exists nesting in cardinality rule compilation. Removed outer ForAll wrapper.
+- **CRITICAL: at_most=0 handling** — Now correctly forbids any value (previously created degenerate constraints)
+- **CRITICAL: multiplier=0 rejected** — ComparisonRule now validates multiplier != 0 at parse time
+- **CRITICAL: Studio packaging** — Moved `axiomguard_studio_core.py` into `axiomguard/studio/core.py` for proper PyPI distribution
+- **CRITICAL: RangeRule min > max** — Now rejected at parse time
+- **CRITICAL: CardinalityRule at_least > at_most** — Now rejected at parse time
+- **CRITICAL: Tautology test** — Removed `assert len(results) >= 0` in LangChain test (same issue as v0.6.3 #2)
+- **HIGH: XSS in Axiom Studio** — User input now rendered via `st.text()` instead of Markdown
+- **HIGH: File upload safety** — Added 1MB size limit + UTF-8 encoding validation
+- **HIGH: LangChain inheritance** — AxiomGuardChain now inherits from Runnable when available (LCEL compatible)
+- **HIGH: LlamaIndex inheritance** — AxiomGuardPostprocessor now inherits from BaseNodePostprocessor when available
+- **MEDIUM: Operator validation** — WhenCondition and CompositeCondition reject invalid operators for value_type (e.g., ">" with string)
+- **MEDIUM: Empty composition rejected** — CompositionRule rejects empty condition lists
+- **MEDIUM: Studio error masking** — `verify_claim_against_rules()` now returns `error: True` flag instead of masking as success
+- **MEDIUM: Mode validation** — LangChain Chain and LlamaIndex Postprocessor reject invalid mode strings
+
+### Changed
+- Test count: 320 → 329 (+9 validation and edge case tests)
+
+---
+
 ## [0.7.0] - 2026-04-06
 
 ### Added

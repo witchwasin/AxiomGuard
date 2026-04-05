@@ -548,3 +548,143 @@ rules:
         rels = kb.axiom_relations()
         assert "cond_a" in rels
         assert "result" in rels
+
+
+# =====================================================================
+# Parser validation edge cases (from code review)
+# =====================================================================
+
+
+class TestParserValidationEdgeCases:
+
+    def test_range_min_greater_than_max_rejected(self):
+        parser = AxiomParser()
+        with pytest.raises(Exception, match="min.*cannot be.*greater.*max"):
+            parser.load_string("""
+axiomguard: "0.7"
+domain: test
+rules:
+  - name: bad_range
+    type: range
+    entity: x
+    relation: y
+    value_type: int
+    min: 500
+    max: 100
+    message: "Bad range."
+""")
+
+    def test_cardinality_at_least_greater_than_at_most_rejected(self):
+        parser = AxiomParser()
+        with pytest.raises(Exception, match="at_least.*cannot be.*greater.*at_most"):
+            parser.load_string("""
+axiomguard: "0.7"
+domain: test
+rules:
+  - name: bad_card
+    type: cardinality
+    entity: x
+    relation: y
+    at_least: 5
+    at_most: 2
+    message: "Bad cardinality."
+""")
+
+    def test_comparison_multiplier_zero_rejected(self):
+        parser = AxiomParser()
+        with pytest.raises(Exception, match="multiplier cannot be 0"):
+            parser.load_string("""
+axiomguard: "0.7"
+domain: test
+rules:
+  - name: bad_comp
+    type: comparison
+    entity: x
+    left:
+      relation: a
+      value_type: int
+      multiplier: 0
+    operator: "<="
+    right:
+      relation: b
+      value_type: int
+    message: "Bad."
+""")
+
+    def test_comparison_float_multiplier_with_int_rejected(self):
+        parser = AxiomParser()
+        with pytest.raises(Exception, match="integer multiplier"):
+            parser.load_string("""
+axiomguard: "0.7"
+domain: test
+rules:
+  - name: bad_mult
+    type: comparison
+    entity: x
+    left:
+      relation: a
+      value_type: int
+      multiplier: 5.5
+    operator: "<="
+    right:
+      relation: b
+      value_type: int
+    message: "Bad."
+""")
+
+    def test_operator_gt_with_string_rejected(self):
+        parser = AxiomParser()
+        with pytest.raises(Exception, match="not valid for value_type"):
+            parser.load_string("""
+axiomguard: "0.7"
+domain: test
+rules:
+  - name: bad_op
+    type: dependency
+    when:
+      entity: x
+      relation: name
+      value: "John"
+      operator: ">"
+      value_type: string
+    then:
+      require:
+        relation: status
+        value: active
+    message: "Bad."
+""")
+
+    def test_cardinality_at_most_zero_accepted(self):
+        """at_most=0 is valid — means no values allowed."""
+        parser = AxiomParser()
+        rs = parser.load_string("""
+axiomguard: "0.7"
+domain: test
+rules:
+  - name: forbidden
+    type: cardinality
+    entity: item
+    relation: banned
+    at_most: 0
+    message: "No banned items."
+""")
+        assert rs.rules[0].at_most == 0
+
+    def test_cardinality_at_most_zero_verification(self):
+        """at_most=0: any value should be rejected."""
+        kb = KnowledgeBase()
+        kb.load_string("""
+axiomguard: "0.7"
+domain: test
+rules:
+  - name: forbidden
+    type: cardinality
+    entity: item
+    relation: banned
+    at_most: 0
+    message: "No banned items."
+""")
+        r = kb.verify(response_claims=[
+            Claim(subject="item", relation="banned", object="spam"),
+        ])
+        assert r.is_hallucinating

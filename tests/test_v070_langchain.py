@@ -127,7 +127,8 @@ class TestAxiomGuardRetriever:
         retriever = AxiomGuardRetriever(knowledge_base=kb, mode="filter")
         docs = [_MockDocument("The company is in Bangkok")]
         results = retriever.verify_documents(docs)
-        assert len(results) >= 0  # May or may not filter depending on rules
+        assert isinstance(results, list)
+        assert len(results) == 1, "Clean document should not be filtered"
 
     def test_verify_dict_documents(self):
         kb = _simple_kb()

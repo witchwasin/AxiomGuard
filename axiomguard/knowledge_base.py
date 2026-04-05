@@ -540,6 +540,7 @@ class KnowledgeBase:
         """comparison → ForAll([s], left_expr OP right_expr)
 
         Cross-relation arithmetic with optional multiplier.
+        Multiplier=0 rejected at parser level.
         """
         s = z3.Const("s", self._StringSort)
         left_fn = self._get_numeric_attr(rule.left.relation, rule.left.value_type)
@@ -549,11 +550,11 @@ class KnowledgeBase:
         right_expr = right_fn(s)
 
         if rule.left.multiplier is not None:
-            m = rule.left.multiplier
-            left_expr = left_expr * (z3.IntVal(int(m)) if rule.left.value_type == "int" else z3.RealVal(str(m)))
+            m = int(rule.left.multiplier) if rule.left.value_type == "int" else rule.left.multiplier
+            left_expr = left_expr * (z3.IntVal(m) if rule.left.value_type == "int" else z3.RealVal(str(m)))
         if rule.right.multiplier is not None:
-            m = rule.right.multiplier
-            right_expr = right_expr * (z3.IntVal(int(m)) if rule.right.value_type == "int" else z3.RealVal(str(m)))
+            m = int(rule.right.multiplier) if rule.right.value_type == "int" else rule.right.multiplier
+            right_expr = right_expr * (z3.IntVal(m) if rule.right.value_type == "int" else z3.RealVal(str(m)))
 
         cmp_expr = self._apply_operator(left_expr, rule.operator, right_expr)
         return [z3.ForAll([s], cmp_expr)]
@@ -561,9 +562,14 @@ class KnowledgeBase:
     def _compile_cardinality(self, rule: CardinalityRule) -> list[z3.ExprRef]:
         """cardinality → bounded distinct-value constraints.
 
-        at_most N:  no (N+1) distinct values can coexist.
-        at_least N: at least N distinct values must exist (modeled as
-                    existence of N distinct constants).
+        at_most N:  If (N+1) values are all true, at least two must be equal.
+                    Pigeonhole principle — Z3 proves no more than N distinct values.
+        at_least N: There exist N distinct values that are all true.
+                    Existence constraint — Z3 requires at least N distinct values.
+
+        Edge cases:
+          - at_most=0: any single value triggers violation (effectively "forbidden")
+          - Values validated > 0 at parser level
         """
         R = self._Relation
         s = z3.Const("s", self._StringSort)
@@ -572,32 +578,38 @@ class KnowledgeBase:
 
         if rule.at_most is not None:
             n = rule.at_most
-            # Create N+1 distinct object variables
-            objs = [z3.Const(f"o_card_{i}", self._StringSort) for i in range(n + 1)]
-            # If all N+1 are asserted true, at least two must be equal
-            all_true = z3.And(*[R(rel, s, o) for o in objs])
-            some_equal = z3.Or(*[
-                objs[i] == objs[j]
-                for i in range(len(objs))
-                for j in range(i + 1, len(objs))
-            ])
-            constraints.append(
-                z3.ForAll([s] + objs, z3.Implies(all_true, some_equal))
-            )
+            if n == 0:
+                # at_most=0: no value at all is allowed
+                o = z3.Const("o_card_0", self._StringSort)
+                constraints.append(
+                    z3.ForAll([s, o], z3.Not(R(rel, s, o)))
+                )
+            else:
+                # Pigeonhole: if N+1 distinct values exist, contradiction
+                objs = [z3.Const(f"o_card_{i}", self._StringSort) for i in range(n + 1)]
+                all_true = z3.And(*[R(rel, s, o) for o in objs])
+                some_equal = z3.Or(*[
+                    objs[i] == objs[j]
+                    for i in range(len(objs))
+                    for j in range(i + 1, len(objs))
+                ])
+                constraints.append(
+                    z3.ForAll([s] + objs, z3.Implies(all_true, some_equal))
+                )
 
         if rule.at_least is not None:
             n = rule.at_least
-            # Create N distinct object variables
+            # Exist N distinct values that are all true (per entity)
             objs = [z3.Const(f"o_exist_{i}", self._StringSort) for i in range(n)]
-            # There exist N distinct values that are all true
             all_true = z3.And(*[R(rel, s, o) for o in objs])
             all_distinct = z3.And(*[
                 objs[i] != objs[j]
                 for i in range(len(objs))
                 for j in range(i + 1, len(objs))
             ])
+            # Exists (not nested under ForAll) — per-model constraint
             constraints.append(
-                z3.ForAll([s], z3.Exists(objs, z3.And(all_true, all_distinct)))
+                z3.Exists(objs, z3.And(all_true, all_distinct))
             )
 
         return constraints
@@ -635,6 +647,9 @@ class KnowledgeBase:
             exprs = [self._build_condition_expr(c, s) for c in rule.none_of]
             or_expr = z3.Or(*exprs) if len(exprs) > 1 else exprs[0]
             parts.append(z3.Not(or_expr))
+
+        if not parts:
+            return []  # No valid conditions — parser should prevent this
 
         when_expr = z3.And(*parts) if len(parts) > 1 else parts[0]
 

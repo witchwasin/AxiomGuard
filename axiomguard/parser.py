@@ -137,6 +137,10 @@ class ExclusionRule(_RuleBase):
     values: list[str] = Field(min_length=2)
 
 
+_STRING_OPS = {"=", "!="}
+_NUMERIC_OPS = {"=", "==", "!=", "<", ">", "<=", ">="}
+
+
 class WhenCondition(BaseModel):
     """The 'if' part of a dependency rule."""
 
@@ -145,6 +149,16 @@ class WhenCondition(BaseModel):
     value: str = Field(min_length=1)
     operator: str = "="
     value_type: Literal["string", "int", "float", "date"] = "string"
+
+    @model_validator(mode="after")
+    def validate_operator_for_type(self) -> "WhenCondition":
+        valid = _NUMERIC_OPS if self.value_type != "string" else _STRING_OPS
+        if self.operator not in valid:
+            raise ValueError(
+                f'Operator "{self.operator}" is not valid for value_type '
+                f'"{self.value_type}". Valid: {valid}'
+            )
+        return self
 
 
 class ThenRequirement(BaseModel):
@@ -250,6 +264,16 @@ class RangeRule(_RuleBase):
     value_type: Literal["int", "float"] = "int"
     min: Optional[float] = None
     max: Optional[float] = None
+
+    @model_validator(mode="after")
+    def validate_range_bounds(self) -> "RangeRule":
+        if self.min is not None and self.max is not None:
+            if self.min > self.max:
+                raise ValueError(
+                    f'RangeRule "{self.name}": min ({self.min}) cannot be '
+                    f"greater than max ({self.max})"
+                )
+        return self
 
 
 # =====================================================================
@@ -432,6 +456,21 @@ class ComparisonRule(_RuleBase):
     operator: Literal["==", "!=", "<", ">", "<=", ">="]
     right: ComparisonOperand
 
+    @model_validator(mode="after")
+    def validate_comparison(self) -> "ComparisonRule":
+        for operand, side in [(self.left, "left"), (self.right, "right")]:
+            if operand.multiplier is not None and operand.multiplier == 0:
+                raise ValueError(
+                    f'ComparisonRule "{self.name}" {side}: multiplier cannot be 0'
+                )
+            if (operand.value_type == "int" and operand.multiplier is not None
+                    and operand.multiplier != int(operand.multiplier)):
+                raise ValueError(
+                    f'ComparisonRule "{self.name}" {side}: '
+                    f"int value_type requires integer multiplier, got {operand.multiplier}"
+                )
+        return self
+
 
 class CardinalityRule(_RuleBase):
     """Count constraint: limit how many values an entity can have for a relation.
@@ -459,11 +498,25 @@ class CardinalityRule(_RuleBase):
     at_least: Optional[int] = None
 
     @model_validator(mode="after")
-    def require_at_least_one_bound(self) -> "CardinalityRule":
+    def validate_cardinality(self) -> "CardinalityRule":
         if self.at_most is None and self.at_least is None:
             raise ValueError(
                 f'Cardinality rule "{self.name}" must specify at least one of '
                 f"at_most or at_least."
+            )
+        if self.at_most is not None and self.at_most < 0:
+            raise ValueError(
+                f'Cardinality rule "{self.name}": at_most must be >= 0, got {self.at_most}'
+            )
+        if self.at_least is not None and self.at_least < 1:
+            raise ValueError(
+                f'Cardinality rule "{self.name}": at_least must be >= 1, got {self.at_least}'
+            )
+        if (self.at_most is not None and self.at_least is not None
+                and self.at_least > self.at_most):
+            raise ValueError(
+                f'Cardinality rule "{self.name}": at_least ({self.at_least}) '
+                f"cannot be greater than at_most ({self.at_most})"
             )
         return self
 
@@ -476,6 +529,16 @@ class CompositeCondition(BaseModel):
     value: str = Field(min_length=1)
     operator: str = "="
     value_type: Literal["string", "int", "float", "date"] = "string"
+
+    @model_validator(mode="after")
+    def validate_operator_for_type(self) -> "CompositeCondition":
+        valid = _NUMERIC_OPS if self.value_type != "string" else _STRING_OPS
+        if self.operator not in valid:
+            raise ValueError(
+                f'Operator "{self.operator}" is not valid for value_type '
+                f'"{self.value_type}". Valid: {valid}'
+            )
+        return self
 
 
 class CompositionRule(_RuleBase):
@@ -508,10 +571,15 @@ class CompositionRule(_RuleBase):
 
     @model_validator(mode="after")
     def require_at_least_one_group(self) -> "CompositionRule":
-        if not self.all_of and not self.any_of and not self.none_of:
+        has_conditions = False
+        for group in (self.all_of, self.any_of, self.none_of):
+            if group and len(group) > 0:
+                has_conditions = True
+                break
+        if not has_conditions:
             raise ValueError(
-                f'Composition rule "{self.name}" must specify at least one of '
-                f"all_of, any_of, or none_of."
+                f'Composition rule "{self.name}" must specify at least one '
+                f"non-empty condition list in all_of, any_of, or none_of."
             )
         return self
 

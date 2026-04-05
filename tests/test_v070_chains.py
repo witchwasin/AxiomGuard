@@ -349,3 +349,83 @@ rules:
         assert "a" in rels
         assert "b" in rels
         assert "c" in rels
+
+
+# =====================================================================
+# Additional chain coverage (from code review)
+# =====================================================================
+
+
+class TestChainEdgeCases:
+
+    def test_partial_chain_missing_last_step(self):
+        """Condition + first step met, but last chain step missing → should fail."""
+        kb = KnowledgeBase()
+        kb.load_string("""
+axiomguard: "0.7"
+domain: test
+rules:
+  - name: three_step
+    type: dependency
+    when:
+      entity: order
+      relation: priority
+      value: urgent
+    then:
+      require:
+        relation: approval
+        value: manager
+    chain:
+      - when:
+          relation: approval
+          value: manager
+        then:
+          require:
+            relation: audit
+            value: logged
+    message: "Urgent orders need approval + audit."
+""")
+        # priority=urgent + approval=manager but audit=NOT_logged
+        r = kb.verify(response_claims=[
+            Claim(subject="order", relation="priority", object="urgent"),
+            Claim(subject="order", relation="approval", object="manager"),
+            Claim(subject="order", relation="audit", object="not_logged"),
+        ])
+        assert r.is_hallucinating
+
+    def test_chain_numeric_when(self):
+        """Chain step with numeric condition."""
+        kb = KnowledgeBase()
+        kb.load_string("""
+axiomguard: "0.7"
+domain: test
+rules:
+  - name: risk_chain
+    type: dependency
+    when:
+      entity: trade
+      relation: amount
+      operator: ">"
+      value: "1000000"
+      value_type: int
+    then:
+      require:
+        relation: risk_level
+        value: high
+    chain:
+      - when:
+          relation: risk_level
+          value: high
+        then:
+          require:
+            relation: compliance_check
+            value: required
+    message: "High-value trades need compliance."
+""")
+        # High amount + risk=high + compliance=required → OK
+        r = kb.verify(response_claims=[
+            Claim(subject="trade", relation="amount", object="5000000"),
+            Claim(subject="trade", relation="risk_level", object="high"),
+            Claim(subject="trade", relation="compliance_check", object="required"),
+        ])
+        assert not r.is_hallucinating

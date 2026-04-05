@@ -38,8 +38,16 @@ except ImportError:
     _HAS_LLAMAINDEX = False
 
 
-class AxiomGuardPostprocessor:
+_PP_VALID_MODES = {"filter", "annotate", "strict"}
+
+# Conditional base: inherit from BaseNodePostprocessor if LlamaIndex available
+_PostprocessorBase = BaseNodePostprocessor if _HAS_LLAMAINDEX else object
+
+
+class AxiomGuardPostprocessor(_PostprocessorBase):
     """Node postprocessor that verifies retrieved nodes against AxiomGuard rules.
+
+    Inherits from LlamaIndex BaseNodePostprocessor when available.
 
     Modes:
       - "filter": Remove nodes that contain hallucinations.
@@ -56,6 +64,8 @@ class AxiomGuardPostprocessor:
         knowledge_base: KnowledgeBase,
         mode: str = "filter",
     ):
+        if mode not in _PP_VALID_MODES:
+            raise ValueError(f"mode must be one of {_PP_VALID_MODES}, got {mode!r}")
         self.kb = knowledge_base
         self.mode = mode
 

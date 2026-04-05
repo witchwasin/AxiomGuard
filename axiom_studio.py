@@ -20,7 +20,7 @@ from __future__ import annotations
 import yaml
 
 # Core logic is separated for testability without Streamlit
-from axiomguard_studio_core import (
+from axiomguard.studio.core import (
     StudioState,
     add_rule_to_state,
     build_yaml_output,
@@ -123,7 +123,7 @@ def main():
             st.subheader(f"Rules ({len(st.session_state.rules)})")
             for i, rule in enumerate(st.session_state.rules):
                 c1, c2 = st.columns([4, 1])
-                c1.write(f"**{rule['name']}** ({rule['type']}) — {rule.get('message', '')}")
+                c1.text(f"{rule['name']} ({rule['type']}) — {rule.get('message', '')}")
                 if c2.button("Remove", key=f"rm_{i}"):
                     st.session_state.rules.pop(i)
                     st.rerun()
@@ -164,7 +164,7 @@ def main():
                     if result["is_hallucinating"]:
                         st.error(f"UNSAT — Violation detected: {result['reason']}")
                         for v in result.get("violated_rules", []):
-                            st.warning(f"Rule: {v['name']} — {v['message']}")
+                            st.text(f"  Violated: {v['name']} — {v['message']}")
                     else:
                         st.success("SAT — No hallucination detected")
                 else:
@@ -176,7 +176,20 @@ def main():
         st.subheader("Import YAML")
         uploaded = st.file_uploader("Upload .axiom.yml", type=["yml", "yaml"])
         if uploaded:
-            result = validate_yaml_input(uploaded.read().decode("utf-8"))
+            if uploaded.size > 1_000_000:
+                st.error("File too large (max 1 MB)")
+            else:
+                try:
+                    yaml_content = uploaded.read().decode("utf-8")
+                except UnicodeDecodeError:
+                    st.error("File must be UTF-8 encoded")
+                    yaml_content = None
+
+                if yaml_content is not None:
+                    result = validate_yaml_input(yaml_content)
+                else:
+                    result = {"valid": False}
+
             if result["valid"]:
                 st.session_state.rules = result["rules"]
                 st.session_state.domain = result["domain"]

@@ -122,6 +122,7 @@ def verify_claim_against_rules(
     except Exception as e:
         return {
             "is_hallucinating": False,
-            "reason": f"Error: {e}",
+            "reason": f"Verification error: {e}",
             "violated_rules": [],
+            "error": True,
         }

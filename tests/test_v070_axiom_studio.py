@@ -6,7 +6,7 @@ Tests the pure logic layer without requiring Streamlit.
 
 import yaml
 
-from axiomguard_studio_core import (
+from axiomguard.studio.core import (
     StudioState,
     add_rule_to_state,
     build_yaml_output,
@@ -120,8 +120,8 @@ rules:
 
     def test_invalid_yaml(self):
         result = validate_yaml_input("not: valid: yaml: [[[")
-        # Should not crash, return valid=False
-        assert isinstance(result["valid"], bool)
+        assert result["valid"] is False, "Should reject malformed YAML"
+        assert result["error"] is not None
 
     def test_empty_rules(self):
         result = validate_yaml_input("axiomguard: '0.7'\ndomain: x\nrules: []")

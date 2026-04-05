@@ -49,11 +49,17 @@ def _require_langchain() -> None:
         )
 
 
-class AxiomGuardChain:
+_CHAIN_VALID_MODES = {"correct", "block", "escalate"}
+
+
+# Conditional base: inherit from Runnable if LangChain is available
+_ChainBase = Runnable if _HAS_LANGCHAIN else object
+
+
+class AxiomGuardChain(_ChainBase):
     """LangChain-compatible chain that wraps generate_with_guard().
 
-    Accepts a query, generates a response via LLM, then verifies it
-    against the KnowledgeBase. Retries on violation.
+    Inherits from LangChain Runnable when available for LCEL compatibility.
 
     Args:
         llm: Any callable (str) -> str, or LangChain BaseLanguageModel.
@@ -69,6 +75,8 @@ class AxiomGuardChain:
         max_retries: int = 2,
         mode: str = "correct",
     ):
+        if mode not in _CHAIN_VALID_MODES:
+            raise ValueError(f"mode must be one of {_CHAIN_VALID_MODES}, got {mode!r}")
         self.llm = llm
         self.kb = knowledge_base
         self.max_retries = max_retries
