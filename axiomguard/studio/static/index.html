@@ -1,0 +1,2458 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Axiom Studio — Visual Rule Editor</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200&display=swap" rel="stylesheet">
+<script>
+tailwind.config = {
+  darkMode: 'class',
+  theme: {
+    extend: {
+      colors: {
+        bg: '#10141a',
+        surface: '#1c2026',
+        'surface-alt': '#252a31',
+        'surface-bright': '#2e343c',
+        primary: '#a2c9ff',
+        'primary-container': '#58a6ff',
+        'on-primary': '#10141a',
+        error: '#ffb4ab',
+        'error-container': '#93000a',
+        tertiary: '#ffba42',
+        success: '#3fb950',
+        'success-dim': '#1a3a24',
+        'text-primary': '#e6edf3',
+        'text-secondary': '#8b949e',
+        'text-muted': '#6e7681',
+        border: '#30363d',
+        'border-bright': '#484f58',
+        'logic-rail': '#58a6ff',
+      },
+      fontFamily: {
+        headline: ['"Space Grotesk"', 'sans-serif'],
+        body: ['"Inter"', 'sans-serif'],
+      },
+    },
+  },
+}
+</script>
+<style>
+  * { box-sizing: border-box; }
+  body { font-family: 'Inter', sans-serif; background: #10141a; color: #e6edf3; margin: 0; }
+  h1, h2, h3, h4, h5, h6 { font-family: 'Space Grotesk', sans-serif; }
+  .material-symbols-outlined { font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24; vertical-align: middle; }
+  .logic-rail { border-left: 3px solid #58a6ff; }
+  .logic-rail-success { border-left: 3px solid #3fb950; }
+  .logic-rail-error { border-left: 3px solid #ffb4ab; }
+  .logic-rail-warning { border-left: 3px solid #ffba42; }
+  ::-webkit-scrollbar { width: 6px; height: 6px; }
+  ::-webkit-scrollbar-track { background: #1c2026; }
+  ::-webkit-scrollbar-thumb { background: #30363d; border-radius: 3px; }
+  ::-webkit-scrollbar-thumb:hover { background: #484f58; }
+  .fade-in { animation: fadeIn 0.3s ease-in; }
+  @keyframes fadeIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+  .slide-up { animation: slideUp 0.4s ease-out; }
+  @keyframes slideUp { from { opacity: 0; transform: translateY(24px); } to { opacity: 1; transform: translateY(0); } }
+  textarea, input, select { outline: none; }
+  textarea:focus, input:focus, select:focus { border-color: #58a6ff !important; box-shadow: 0 0 0 1px #58a6ff33; }
+  .btn-primary { background: #58a6ff; color: #10141a; font-weight: 600; }
+  .btn-primary:hover { background: #a2c9ff; }
+  .btn-secondary { background: #252a31; color: #e6edf3; border: 1px solid #30363d; }
+  .btn-secondary:hover { background: #2e343c; border-color: #484f58; }
+  .btn-danger { background: #93000a; color: #ffb4ab; }
+  .btn-danger:hover { background: #b01520; }
+  .severity-btn { padding: 6px 14px; border-radius: 6px; font-size: 13px; font-weight: 500; cursor: pointer; border: 1px solid #30363d; background: #252a31; color: #8b949e; transition: all 0.15s; }
+  .severity-btn.active-error { background: #93000a33; color: #ffb4ab; border-color: #ffb4ab; }
+  .severity-btn.active-warning { background: #ffba4233; color: #ffba42; border-color: #ffba42; }
+  .severity-btn.active-info { background: #58a6ff22; color: #a2c9ff; border-color: #a2c9ff; }
+  .tab-btn { padding: 8px 18px; font-size: 13px; font-weight: 500; border-radius: 6px; cursor: pointer; color: #8b949e; background: transparent; border: none; transition: all 0.15s; }
+  .tab-btn:hover { color: #e6edf3; background: #252a31; }
+  .tab-btn.active { color: #a2c9ff; background: #58a6ff1a; }
+  .yaml-preview { font-family: 'SF Mono', 'Fira Code', 'Cascadia Code', monospace; font-size: 13px; line-height: 1.6; }
+  .modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.7); z-index: 100; display: flex; align-items: center; justify-content: center; }
+  .tooltip { position: relative; }
+  select option { background: #1c2026; color: #e6edf3; }
+  /* Pulse animation for newly added rules */
+  @keyframes pulse-glow { 0% { box-shadow: 0 0 0 0 #58a6ff44; } 70% { box-shadow: 0 0 0 8px #58a6ff00; } 100% { box-shadow: 0 0 0 0 #58a6ff00; } }
+  .pulse-new { animation: pulse-glow 0.8s ease-out; }
+  /* Rule type color accents */
+  .rule-type-range { border-left-color: #58a6ff !important; }
+  .rule-type-comparison { border-left-color: #d2a8ff !important; }
+  .rule-type-exclusion { border-left-color: #ffb4ab !important; }
+  .rule-type-cardinality { border-left-color: #ffba42 !important; }
+  .rule-type-unique { border-left-color: #7ee787 !important; }
+  .rule-type-negation { border-left-color: #ff7b72 !important; }
+  /* Quick-start card hover lift */
+  .quick-card:hover { transform: translateY(-1px); box-shadow: 0 2px 8px #00000033; }
+  .quick-card { transition: all 0.15s ease; }
+  /* Empty guide illustration */
+  .empty-guide { background: linear-gradient(135deg, #58a6ff08, #d2a8ff08); }
+</style>
+</head>
+<body class="bg-bg min-h-screen flex flex-col">
+
+<!-- ================================================================== -->
+<!-- HEADER                                                              -->
+<!-- ================================================================== -->
+<header class="bg-surface border-b border-border px-6 py-3 flex items-center justify-between sticky top-0 z-50">
+  <div class="flex items-center gap-6">
+    <div class="flex items-center gap-2 cursor-pointer" onclick="showScreen('builder')">
+      <span class="material-symbols-outlined text-primary-container" style="font-size:28px;">shield</span>
+      <div>
+        <h1 class="font-headline text-lg font-bold text-text-primary leading-tight">Axiom Studio</h1>
+        <p class="text-[10px] text-text-muted leading-tight" data-i18n="header_tagline">Visual Rule Editor for AxiomGuard</p>
+      </div>
+    </div>
+    <nav class="hidden md:flex items-center gap-1 ml-4">
+      <button class="tab-btn active" id="nav-builder" onclick="showScreen('builder')" data-i18n="nav_builder">Rule Builder</button>
+      <button class="tab-btn" id="nav-docs" onclick="window.open('https://github.com/witchwasin/AxiomGuard#readme','_blank');" data-i18n="nav_docs">Documentation</button>
+      <button class="tab-btn" id="nav-logs" onclick="showToast(t('toast_logs_coming'),'info')" data-i18n="nav_logs">Logs</button>
+    </nav>
+  </div>
+  <div class="flex items-center gap-3">
+    <button onclick="toggleLang()" class="btn-secondary rounded-lg px-3 py-1.5 text-xs flex items-center gap-1.5" id="lang-toggle">
+      <span class="material-symbols-outlined" style="font-size:16px;">translate</span>
+      <span id="lang-label">EN</span>
+    </button>
+    <button onclick="showToast(t('toast_settings_coming'),'info')" class="p-2 rounded-lg hover:bg-surface-alt transition-colors">
+      <span class="material-symbols-outlined text-text-secondary" style="font-size:20px;">settings</span>
+    </button>
+  </div>
+</header>
+
+<!-- ================================================================== -->
+<!-- ONBOARDING SCREEN                                                   -->
+<!-- ================================================================== -->
+<div id="screen-onboarding" class="flex-1 flex items-center justify-center p-6">
+  <div class="max-w-2xl w-full text-center slide-up">
+    <div class="mb-8">
+      <span class="material-symbols-outlined text-primary-container" style="font-size:64px;">shield</span>
+      <h2 class="font-headline text-3xl font-bold text-text-primary mt-4" data-i18n="onboard_title">Welcome to Axiom Studio</h2>
+      <p class="text-text-secondary mt-2 text-lg" data-i18n="onboard_subtitle">Build, test, and deploy verification rules with a visual editor. Powered by Z3 Theorem Prover.</p>
+    </div>
+    <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-8">
+      <div class="bg-surface rounded-xl p-5 logic-rail text-left fade-in">
+        <div class="flex items-center gap-3 mb-2">
+          <span class="material-symbols-outlined text-primary-container">add_circle</span>
+          <h3 class="font-headline font-semibold text-text-primary" data-i18n="onboard_step1_title">1. Add Rules</h3>
+        </div>
+        <p class="text-text-secondary text-sm" data-i18n="onboard_step1_desc">Define range, comparison, exclusion, cardinality, unique, or negation rules using the visual form.</p>
+      </div>
+      <div class="bg-surface rounded-xl p-5 logic-rail text-left fade-in" style="animation-delay:0.1s">
+        <div class="flex items-center gap-3 mb-2">
+          <span class="material-symbols-outlined text-primary-container">code</span>
+          <h3 class="font-headline font-semibold text-text-primary" data-i18n="onboard_step2_title">2. Preview YAML</h3>
+        </div>
+        <p class="text-text-secondary text-sm" data-i18n="onboard_step2_desc">See the generated axiomguard YAML in real-time. Download or copy with one click.</p>
+      </div>
+      <div class="bg-surface rounded-xl p-5 logic-rail text-left fade-in" style="animation-delay:0.2s">
+        <div class="flex items-center gap-3 mb-2">
+          <span class="material-symbols-outlined text-primary-container">science</span>
+          <h3 class="font-headline font-semibold text-text-primary" data-i18n="onboard_step3_title">3. Test Claims</h3>
+        </div>
+        <p class="text-text-secondary text-sm" data-i18n="onboard_step3_desc">Verify claims against your rules instantly. See SAT/UNSAT results with violated rule details.</p>
+      </div>
+      <div class="bg-surface rounded-xl p-5 logic-rail text-left fade-in" style="animation-delay:0.3s">
+        <div class="flex items-center gap-3 mb-2">
+          <span class="material-symbols-outlined text-primary-container">rocket_launch</span>
+          <h3 class="font-headline font-semibold text-text-primary" data-i18n="onboard_step4_title">4. Deploy</h3>
+        </div>
+        <p class="text-text-secondary text-sm" data-i18n="onboard_step4_desc">Export your rules as YAML files ready for integration with any AxiomGuard-powered system.</p>
+      </div>
+    </div>
+    <button onclick="dismissOnboarding()" class="btn-primary rounded-xl px-8 py-3 text-base transition-all hover:scale-[1.02]">
+      <span class="flex items-center gap-2 justify-center">
+        <span data-i18n="onboard_cta">Get Started</span>
+        <span class="material-symbols-outlined" style="font-size:20px;">arrow_forward</span>
+      </span>
+    </button>
+    <p class="text-text-muted text-xs mt-4" data-i18n="onboard_dismiss">You can always revisit this guide from Settings.</p>
+  </div>
+</div>
+
+<!-- ================================================================== -->
+<!-- RULE BUILDER SCREEN                                                 -->
+<!-- ================================================================== -->
+<div id="screen-builder" class="flex-1 hidden">
+  <div class="flex flex-col lg:flex-row min-h-[calc(100vh-120px)]">
+
+    <!-- LEFT PANEL: Rule Form -->
+    <div class="lg:w-[480px] w-full bg-surface border-r border-border p-5 overflow-y-auto flex-shrink-0">
+      <div class="flex items-center justify-between mb-4">
+        <h2 class="font-headline text-lg font-semibold text-text-primary flex items-center gap-2">
+          <span class="material-symbols-outlined text-primary-container" style="font-size:22px;">edit_note</span>
+          <span data-i18n="form_title">Rule Builder</span>
+        </h2>
+        <button onclick="openGenerateModal()" class="btn-secondary rounded-lg px-3 py-1.5 text-xs flex items-center gap-1.5">
+          <span class="material-symbols-outlined" style="font-size:16px;">auto_awesome</span>
+          <span data-i18n="btn_generate">Generate Rules</span>
+        </button>
+      </div>
+
+      <!-- Domain (hidden, auto-managed) -->
+      <input type="hidden" id="input-domain" value="my_domain">
+
+      <!-- Rule Type -->
+      <div class="mb-3">
+        <label class="text-xs font-medium text-text-secondary mb-1 block" data-i18n="label_rule_type">Rule Type</label>
+        <select id="select-rule-type" onchange="onRuleTypeChange()" class="w-full bg-surface-alt border border-border rounded-lg px-3 py-2 text-sm text-text-primary cursor-pointer">
+          <option value="range" data-i18n-option="opt_range">Range (min/max bounds)</option>
+          <option value="comparison" data-i18n-option="opt_comparison">Comparison (left vs right)</option>
+          <option value="exclusion" data-i18n-option="opt_exclusion">Exclusion (forbidden values)</option>
+          <option value="cardinality" data-i18n-option="opt_cardinality">Cardinality (count constraint)</option>
+          <option value="unique" data-i18n-option="opt_unique">Unique (no duplicates)</option>
+          <option value="negation" data-i18n-option="opt_negation">Negation (must not be)</option>
+        </select>
+      </div>
+
+      <!-- Rule Type Description + Try Example -->
+      <div id="rule-type-hint" class="mb-4 bg-surface-alt/50 border border-border/50 rounded-lg px-3 py-2.5 flex items-start gap-2">
+        <span class="material-symbols-outlined text-primary/70 mt-0.5" style="font-size:16px;">lightbulb</span>
+        <div class="flex-1">
+          <p id="rule-type-desc" class="text-xs text-text-secondary leading-relaxed"></p>
+          <button onclick="fillExample()" class="text-xs text-primary hover:underline mt-1 inline-flex items-center gap-1">
+            <span class="material-symbols-outlined" style="font-size:14px;">play_arrow</span>
+            <span id="try-example-label" data-i18n="btn_try_example">Try Example</span>
+          </button>
+        </div>
+      </div>
+
+      <!-- Dynamic Fields Container -->
+      <div id="dynamic-fields" class="mb-4 space-y-3">
+        <!-- Filled by JS -->
+      </div>
+
+      <!-- Advanced options (collapsed by default) -->
+      <details class="mb-4 group" id="advanced-options">
+        <summary class="text-xs text-text-muted cursor-pointer hover:text-text-secondary flex items-center gap-1 select-none">
+          <span class="material-symbols-outlined transition-transform group-open:rotate-90" style="font-size:14px;">chevron_right</span>
+          <span data-i18n="label_advanced">Advanced options</span>
+          <span class="text-text-muted/50 ml-1" data-i18n="label_advanced_hint">(severity, message, domain)</span>
+        </summary>
+        <div class="mt-3 space-y-3 pl-1">
+          <!-- Severity -->
+          <div>
+            <label class="text-xs font-medium text-text-secondary mb-1.5 block" data-i18n="label_severity">Severity</label>
+            <div class="flex gap-2" id="severity-group">
+              <button type="button" class="severity-btn active-error" data-severity="error" onclick="selectSeverity('error')" data-i18n="sev_error">Error</button>
+              <button type="button" class="severity-btn" data-severity="warning" onclick="selectSeverity('warning')" data-i18n="sev_warning">Warning</button>
+              <button type="button" class="severity-btn" data-severity="info" onclick="selectSeverity('info')" data-i18n="sev_info">Info</button>
+            </div>
+          </div>
+          <!-- Error Message -->
+          <div>
+            <label class="text-xs font-medium text-text-secondary mb-1 block" data-i18n="label_message">Error Message</label>
+            <input type="text" id="input-message" class="w-full bg-surface-alt border border-border rounded-lg px-3 py-2 text-sm text-text-primary placeholder-text-muted" data-i18n-placeholder="ph_message_auto" placeholder="Auto-generated if left empty">
+          </div>
+          <!-- Domain -->
+          <div>
+            <label class="text-xs font-medium text-text-secondary mb-1 block" data-i18n="label_domain">Domain</label>
+            <input type="text" id="input-domain-visible" value="my_domain" class="w-full bg-surface-alt border border-border rounded-lg px-3 py-2 text-sm text-text-primary placeholder-text-muted" data-i18n-placeholder="ph_domain" placeholder="e.g. financial_report" oninput="document.getElementById('input-domain').value=this.value">
+          </div>
+        </div>
+      </details>
+
+      <!-- Buttons -->
+      <div class="flex gap-2 mb-6">
+        <button onclick="addRule()" class="btn-primary rounded-lg px-4 py-2 text-sm flex-1 flex items-center justify-center gap-1.5 transition-all">
+          <span class="material-symbols-outlined" style="font-size:18px;">add</span>
+          <span id="add-btn-label" data-i18n="btn_add_rule">Add Rule</span>
+        </button>
+        <button onclick="clearForm()" class="btn-secondary rounded-lg px-4 py-2 text-sm flex items-center gap-1.5 transition-all">
+          <span class="material-symbols-outlined" style="font-size:18px;">refresh</span>
+          <span id="clear-btn-label" data-i18n="btn_clear">Clear</span>
+        </button>
+      </div>
+
+      <!-- Rules List -->
+      <div class="border-t border-border pt-4">
+        <div class="flex items-center justify-between mb-3">
+          <h3 class="font-headline text-sm font-semibold text-text-primary flex items-center gap-1.5">
+            <span class="material-symbols-outlined text-primary-container" style="font-size:18px;">list_alt</span>
+            <span data-i18n="rules_list_title">Rules</span>
+            <span class="text-text-muted font-body font-normal ml-1" id="rules-count">(0)</span>
+          </h3>
+          <button onclick="clearAllRules()" class="text-xs text-text-muted hover:text-error transition-colors" data-i18n="btn_clear_all">Clear All</button>
+        </div>
+        <div id="rules-list" class="space-y-2">
+          <div id="empty-rules-msg" class="py-3">
+            <p class="text-text-muted text-sm text-center mb-3" data-i18n="rules_empty_quick">Quick start — click to add:</p>
+            <div class="grid grid-cols-1 gap-1.5">
+              <button onclick="quickAdd('range','revenue','0','1000000')" class="quick-card text-left text-xs bg-surface-alt/50 hover:bg-surface-alt border border-border/30 hover:border-primary/30 rounded-lg px-3 py-2 group">
+                <span class="text-primary/80 font-medium">Range</span>
+                <span class="text-text-muted"> — revenue 0-1,000,000</span>
+              </button>
+              <button onclick="quickAdd('comparison','expenses','revenue','<=')" class="quick-card text-left text-xs bg-surface-alt/50 hover:bg-surface-alt border border-border/30 hover:border-primary/30 rounded-lg px-3 py-2 group">
+                <span class="text-primary/80 font-medium">Comparison</span>
+                <span class="text-text-muted"> — expenses &lt;= revenue</span>
+              </button>
+              <button onclick="quickAdd('negation','status','N/A,TBD,null','')" class="quick-card text-left text-xs bg-surface-alt/50 hover:bg-surface-alt border border-border/30 hover:border-primary/30 rounded-lg px-3 py-2 group">
+                <span class="text-primary/80 font-medium">Negation</span>
+                <span class="text-text-muted"> — status must not be N/A, TBD, null</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- RIGHT PANEL: Preview + Tester + Import -->
+    <div class="flex-1 p-5 overflow-y-auto">
+      <!-- Right Panel Tabs -->
+      <div class="flex items-center gap-1 mb-4 border-b border-border pb-2">
+        <button class="tab-btn active" id="rtab-yaml" onclick="switchRightTab('yaml')" data-i18n="tab_yaml">YAML Preview</button>
+        <button class="tab-btn" id="rtab-tester" onclick="switchRightTab('tester')" data-i18n="tab_tester">Claim Tester</button>
+        <button class="tab-btn" id="rtab-import" onclick="switchRightTab('import')" data-i18n="tab_import">Import</button>
+      </div>
+
+      <!-- YAML Preview Tab -->
+      <div id="rpanel-yaml" class="fade-in">
+        <div class="flex items-center justify-between mb-3">
+          <h3 class="font-headline text-sm font-semibold text-text-primary flex items-center gap-1.5">
+            <span class="material-symbols-outlined text-primary-container" style="font-size:18px;">code</span>
+            <span data-i18n="yaml_title">Generated YAML</span>
+          </h3>
+          <div class="flex gap-2">
+            <button onclick="copyYaml()" class="btn-secondary rounded-lg px-3 py-1.5 text-xs flex items-center gap-1">
+              <span class="material-symbols-outlined" style="font-size:14px;">content_copy</span>
+              <span data-i18n="btn_copy">Copy</span>
+            </button>
+            <button onclick="downloadYaml()" class="btn-secondary rounded-lg px-3 py-1.5 text-xs flex items-center gap-1">
+              <span class="material-symbols-outlined" style="font-size:14px;">download</span>
+              <span data-i18n="btn_download">Download</span>
+            </button>
+          </div>
+        </div>
+        <div class="bg-bg border border-border rounded-xl p-4 overflow-auto max-h-[45vh]">
+          <pre id="yaml-output" class="yaml-preview text-text-secondary whitespace-pre-wrap">axiomguard: "0.7"
+domain: my_domain
+rules: []
+</pre>
+        </div>
+
+        <!-- Empty state guide -->
+        <div id="empty-yaml-guide" class="mt-4 empty-guide border border-border/30 rounded-xl px-5 py-6 text-center">
+          <span class="material-symbols-outlined text-primary/40 mb-2" style="font-size:48px;">edit_note</span>
+          <h4 class="text-sm font-semibold text-text-primary mb-1" data-i18n="empty_yaml_title">Your rules will appear here</h4>
+          <p class="text-xs text-text-muted" data-i18n="empty_yaml_desc">Add rules from the left panel or use Quick Start templates below the form.</p>
+        </div>
+
+        <!-- How to use (shown after rules exist) -->
+        <div id="usage-guide" class="mt-4 bg-surface-alt/50 border border-border/50 rounded-lg px-4 py-3" style="display:none">
+          <div class="flex items-center gap-1.5 mb-2">
+            <span class="material-symbols-outlined text-primary/70" style="font-size:16px;">integration_instructions</span>
+            <h4 class="text-xs font-semibold text-text-primary" data-i18n="usage_title">How to use this file</h4>
+          </div>
+          <p class="text-xs text-text-secondary mb-2" data-i18n="usage_step1">1. Save as <code class="bg-bg px-1 rounded text-primary/80">rules.axiom.yml</code> in your project</p>
+          <p class="text-xs text-text-secondary mb-2" data-i18n="usage_step2">2. Install: <code class="bg-bg px-1 rounded text-primary/80">pip install axiomguard</code></p>
+          <p class="text-xs text-text-secondary mb-3" data-i18n="usage_step3">3. Use in Python:</p>
+          <pre class="bg-bg border border-border rounded-lg px-3 py-2 text-xs text-text-secondary overflow-x-auto"><code>from axiomguard import KnowledgeBase, Claim
+
+kb = KnowledgeBase()
+kb.load_file("rules.axiom.yml")
+
+claims = [Claim(subject="revenue", relation="value", object="500000")]
+result = kb.verify(response_claims=claims)
+
+print(result.is_hallucinating)  # True/False
+print(result.reason)</code></pre>
+        </div>
+      </div>
+
+      <!-- Claim Tester Tab -->
+      <div id="rpanel-tester" class="hidden fade-in">
+        <h3 class="font-headline text-sm font-semibold text-text-primary flex items-center gap-1.5 mb-3">
+          <span class="material-symbols-outlined text-primary-container" style="font-size:18px;">science</span>
+          <span data-i18n="tester_title">Claim Tester</span>
+        </h3>
+
+        <!-- Simple mode: select rule + value -->
+        <div class="bg-surface-alt border border-border rounded-xl p-4 space-y-3 mb-4">
+          <div>
+            <label class="text-xs font-medium text-text-secondary mb-1 block" data-i18n="tester_select_rule">Select a rule to test</label>
+            <select id="tester-rule-select" onchange="onTesterRuleSelect()" class="w-full bg-bg border border-border rounded-lg px-3 py-2 text-sm text-text-primary cursor-pointer">
+              <option value="" data-i18n-option="tester_no_rules">-- No rules yet --</option>
+            </select>
+          </div>
+          <div id="tester-hint" class="bg-bg/50 border border-border/30 rounded-lg px-3 py-2 hidden">
+            <p id="tester-hint-text" class="text-xs text-text-muted"></p>
+          </div>
+          <div>
+            <label class="text-xs font-medium text-text-secondary mb-1 block" data-i18n="tester_enter_value">Enter a value to test</label>
+            <input type="text" id="claim-value" class="w-full bg-bg border border-border rounded-lg px-3 py-2 text-sm text-text-primary placeholder-text-muted" data-i18n-placeholder="ph_tester_value" placeholder="e.g. 500000">
+          </div>
+          <button onclick="verifyClaim()" class="btn-primary rounded-lg px-4 py-2 text-sm w-full flex items-center justify-center gap-1.5 transition-all" id="btn-verify">
+            <span class="material-symbols-outlined" style="font-size:18px;">verified</span>
+            <span data-i18n="btn_verify">Verify Claim</span>
+          </button>
+        </div>
+
+        <!-- Hidden fields for API compatibility -->
+        <input type="hidden" id="claim-subject" value="">
+        <input type="hidden" id="claim-relation" value="value">
+
+        <!-- Advanced: manual mode toggle -->
+        <details class="mb-4">
+          <summary class="text-xs text-text-muted cursor-pointer hover:text-text-secondary flex items-center gap-1 select-none">
+            <span class="material-symbols-outlined" style="font-size:14px;">chevron_right</span>
+            <span data-i18n="tester_advanced">Advanced: manual Subject/Relation/Value</span>
+          </summary>
+          <div class="mt-2 bg-surface-alt border border-border rounded-xl p-4 space-y-3">
+            <div>
+              <label class="text-xs font-medium text-text-secondary mb-1 block" data-i18n="label_subject">Subject</label>
+              <input type="text" id="claim-subject-manual" class="w-full bg-bg border border-border rounded-lg px-3 py-2 text-sm text-text-primary placeholder-text-muted" placeholder="e.g. revenue">
+            </div>
+            <div>
+              <label class="text-xs font-medium text-text-secondary mb-1 block" data-i18n="label_relation">Relation</label>
+              <input type="text" id="claim-relation-manual" class="w-full bg-bg border border-border rounded-lg px-3 py-2 text-sm text-text-primary placeholder-text-muted" placeholder="e.g. value">
+            </div>
+            <div>
+              <label class="text-xs font-medium text-text-secondary mb-1 block" data-i18n="label_value">Value</label>
+              <input type="text" id="claim-value-manual" class="w-full bg-bg border border-border rounded-lg px-3 py-2 text-sm text-text-primary placeholder-text-muted" placeholder="e.g. 500000">
+            </div>
+            <button onclick="verifyClaimManual()" class="btn-secondary rounded-lg px-4 py-2 text-sm w-full flex items-center justify-center gap-1.5">
+              <span class="material-symbols-outlined" style="font-size:18px;">verified</span>
+              <span data-i18n="btn_verify">Verify Claim</span>
+            </button>
+          </div>
+        </details>
+
+        <div id="verify-result" class="hidden">
+          <!-- Filled by JS -->
+        </div>
+      </div>
+
+      <!-- Import Tab -->
+      <div id="rpanel-import" class="hidden fade-in">
+        <h3 class="font-headline text-sm font-semibold text-text-primary flex items-center gap-1.5 mb-3">
+          <span class="material-symbols-outlined text-primary-container" style="font-size:18px;">upload_file</span>
+          <span data-i18n="import_title">Import YAML</span>
+        </h3>
+        <div class="bg-surface-alt border border-border rounded-xl p-4 space-y-3">
+          <div>
+            <label class="text-xs font-medium text-text-secondary mb-1 block" data-i18n="label_paste_yaml">Paste YAML content</label>
+            <textarea id="import-yaml" rows="12" class="w-full bg-bg border border-border rounded-lg px-3 py-2 text-sm text-text-primary placeholder-text-muted yaml-preview" data-i18n-placeholder="ph_paste_yaml" placeholder="Paste your .axiom.yml content here..."></textarea>
+          </div>
+          <div class="flex gap-2">
+            <button onclick="importFromText()" class="btn-primary rounded-lg px-4 py-2 text-sm flex-1 flex items-center justify-center gap-1.5 transition-all">
+              <span class="material-symbols-outlined" style="font-size:18px;">input</span>
+              <span data-i18n="btn_import_text">Import from Text</span>
+            </button>
+            <label class="btn-secondary rounded-lg px-4 py-2 text-sm flex items-center gap-1.5 cursor-pointer transition-all">
+              <span class="material-symbols-outlined" style="font-size:18px;">attach_file</span>
+              <span data-i18n="btn_import_file">Upload File</span>
+              <input type="file" accept=".yml,.yaml" class="hidden" onchange="importFromFile(event)">
+            </label>
+          </div>
+        </div>
+        <div id="import-result" class="mt-3 hidden">
+          <!-- Filled by JS -->
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ================================================================== -->
+<!-- GENERATE RULES MODAL                                                -->
+<!-- ================================================================== -->
+<div id="modal-generate" class="modal-overlay hidden" onclick="closeGenerateModal(event)">
+  <div class="bg-surface border border-border rounded-2xl w-full max-w-2xl max-h-[85vh] overflow-hidden flex flex-col slide-up" onclick="event.stopPropagation()">
+    <!-- Modal Header -->
+    <div class="flex items-center justify-between px-6 py-4 border-b border-border">
+      <h2 class="font-headline text-lg font-semibold text-text-primary flex items-center gap-2">
+        <span class="material-symbols-outlined text-primary-container" style="font-size:22px;">auto_awesome</span>
+        <span data-i18n="gen_title">Generate Rules from Text</span>
+      </h2>
+      <button onclick="closeGenerateModal()" class="p-1.5 rounded-lg hover:bg-surface-alt transition-colors">
+        <span class="material-symbols-outlined text-text-secondary" style="font-size:20px;">close</span>
+      </button>
+    </div>
+    <!-- Modal Body -->
+    <div class="flex-1 overflow-y-auto px-6 py-4 space-y-4">
+      <!-- Industry Presets -->
+      <div>
+        <label class="text-xs font-medium text-text-secondary mb-2 block" data-i18n="gen_preset_label">Choose an industry template:</label>
+        <div class="grid grid-cols-3 gap-2" id="industry-presets">
+          <button onclick="applyIndustryPreset('medical')" class="quick-card text-center bg-surface-alt/50 hover:bg-surface-alt border border-border/30 hover:border-primary/30 rounded-lg px-3 py-3">
+            <span class="material-symbols-outlined text-primary/60 block mb-1" style="font-size:28px;">local_hospital</span>
+            <span class="text-xs font-medium text-text-primary" data-i18n="preset_medical">Medical</span>
+          </button>
+          <button onclick="applyIndustryPreset('banking')" class="quick-card text-center bg-surface-alt/50 hover:bg-surface-alt border border-border/30 hover:border-primary/30 rounded-lg px-3 py-3">
+            <span class="material-symbols-outlined text-primary/60 block mb-1" style="font-size:28px;">account_balance</span>
+            <span class="text-xs font-medium text-text-primary" data-i18n="preset_banking">Banking</span>
+          </button>
+          <button onclick="applyIndustryPreset('hr')" class="quick-card text-center bg-surface-alt/50 hover:bg-surface-alt border border-border/30 hover:border-primary/30 rounded-lg px-3 py-3">
+            <span class="material-symbols-outlined text-primary/60 block mb-1" style="font-size:28px;">badge</span>
+            <span class="text-xs font-medium text-text-primary" data-i18n="preset_hr">HR</span>
+          </button>
+          <button onclick="applyIndustryPreset('ecommerce')" class="quick-card text-center bg-surface-alt/50 hover:bg-surface-alt border border-border/30 hover:border-primary/30 rounded-lg px-3 py-3">
+            <span class="material-symbols-outlined text-primary/60 block mb-1" style="font-size:28px;">shopping_cart</span>
+            <span class="text-xs font-medium text-text-primary" data-i18n="preset_ecommerce">E-Commerce</span>
+          </button>
+          <button onclick="applyIndustryPreset('insurance')" class="quick-card text-center bg-surface-alt/50 hover:bg-surface-alt border border-border/30 hover:border-primary/30 rounded-lg px-3 py-3">
+            <span class="material-symbols-outlined text-primary/60 block mb-1" style="font-size:28px;">shield</span>
+            <span class="text-xs font-medium text-text-primary" data-i18n="preset_insurance">Insurance</span>
+          </button>
+          <button onclick="applyIndustryPreset('education')" class="quick-card text-center bg-surface-alt/50 hover:bg-surface-alt border border-border/30 hover:border-primary/30 rounded-lg px-3 py-3">
+            <span class="material-symbols-outlined text-primary/60 block mb-1" style="font-size:28px;">school</span>
+            <span class="text-xs font-medium text-text-primary" data-i18n="preset_education">Education</span>
+          </button>
+          <button onclick="document.getElementById('custom-text-section').scrollIntoView({behavior:'smooth'});document.getElementById('gen-text').focus()" class="quick-card text-center bg-surface-alt/50 hover:bg-surface-alt border border-border/30 hover:border-primary/30 rounded-lg px-3 py-3 col-span-3">
+            <span class="material-symbols-outlined text-text-muted/60 block mb-1" style="font-size:28px;">edit_note</span>
+            <span class="text-xs font-medium text-text-primary" data-i18n="preset_custom">Other / Custom</span>
+          </button>
+        </div>
+      </div>
+
+      <div class="flex items-center gap-3 text-text-muted">
+        <div class="flex-1 border-t border-border"></div>
+        <span class="text-xs" data-i18n="gen_or">or write your own</span>
+        <div class="flex-1 border-t border-border"></div>
+      </div>
+
+      <!-- Custom text input -->
+      <div id="custom-text-section">
+        <label class="text-xs font-medium text-text-secondary mb-1 block" data-i18n="gen_label_text">Paste your policy, specification, or constraint text</label>
+        <textarea id="gen-text" rows="4" class="w-full bg-surface-alt border border-border rounded-lg px-3 py-2 text-sm text-text-primary placeholder-text-muted" data-i18n-placeholder="gen_ph_text" placeholder="e.g. Revenue must be between 0 and 10 million. Expenses cannot exceed revenue. Department names must be unique."></textarea>
+      </div>
+      <div>
+        <label class="text-xs font-medium text-text-secondary mb-1 block" data-i18n="gen_label_domain">Domain name</label>
+        <input type="text" id="gen-domain" class="w-full bg-surface-alt border border-border rounded-lg px-3 py-2 text-sm text-text-primary placeholder-text-muted" data-i18n-placeholder="gen_ph_domain" placeholder="e.g. financial_report" value="">
+      </div>
+      <button onclick="generateRules()" class="btn-primary rounded-lg px-4 py-2.5 text-sm w-full flex items-center justify-center gap-1.5 transition-all" id="btn-generate-analyze">
+        <span class="material-symbols-outlined" style="font-size:18px;">auto_awesome</span>
+        <span data-i18n="btn_analyze">Analyze</span>
+      </button>
+      </div><!-- end custom-text-section -->
+
+      <!-- Generated Suggestions -->
+      <div id="gen-suggestions" class="space-y-3 hidden">
+        <div class="flex items-center justify-between">
+          <h3 class="font-headline text-sm font-semibold text-text-primary" data-i18n="gen_suggestions_title">Suggested Rules</h3>
+          <button onclick="approveAllSuggestions()" class="text-xs text-success hover:underline" data-i18n="btn_approve_all">Approve All</button>
+        </div>
+        <div id="gen-suggestions-list" class="space-y-2">
+          <!-- Filled by JS -->
+        </div>
+      </div>
+
+      <!-- Loading state -->
+      <div id="gen-loading" class="hidden text-center py-8">
+        <div class="inline-block w-8 h-8 border-2 border-primary-container border-t-transparent rounded-full animate-spin mb-3"></div>
+        <p class="text-text-secondary text-sm" data-i18n="gen_analyzing">Analyzing text and generating rules...</p>
+      </div>
+
+      <!-- Error state -->
+      <div id="gen-error" class="hidden bg-error-container/20 border border-error/30 rounded-xl p-4">
+        <p class="text-error text-sm" id="gen-error-msg"></p>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ================================================================== -->
+<!-- TOAST NOTIFICATIONS                                                 -->
+<!-- ================================================================== -->
+<div id="toast-container" class="fixed bottom-6 right-6 z-[200] space-y-2"></div>
+
+<!-- ================================================================== -->
+<!-- FOOTER                                                              -->
+<!-- ================================================================== -->
+<footer class="bg-surface border-t border-border px-6 py-3 flex flex-col sm:flex-row items-center justify-between gap-2 text-xs text-text-muted">
+  <span>Powered by AxiomGuard v0.7.2 &mdash; Z3 Theorem Prover</span>
+  <div class="flex items-center gap-4">
+    <a href="https://github.com/axiomguard/axiomguard" target="_blank" class="hover:text-text-secondary transition-colors flex items-center gap-1">
+      <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 24 24"><path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0024 12c0-6.63-5.37-12-12-12z"/></svg>
+      GitHub
+    </a>
+    <a href="https://pypi.org/project/axiomguard/" target="_blank" class="hover:text-text-secondary transition-colors flex items-center gap-1">
+      <span class="material-symbols-outlined" style="font-size:14px;">inventory_2</span>
+      PyPI
+    </a>
+  </div>
+</footer>
+
+<!-- ================================================================== -->
+<!-- JAVASCRIPT                                                          -->
+<!-- ================================================================== -->
+<script>
+// =====================================================================
+// STATE
+// =====================================================================
+let currentLang = 'en';
+let currentSeverity = 'error';
+let rules = [];
+let editingIndex = -1;
+let currentRightTab = 'yaml';
+
+// =====================================================================
+// TRANSLATIONS
+// =====================================================================
+const i18n = {
+  en: {
+    header_tagline: 'Visual Rule Editor for AxiomGuard',
+    nav_builder: 'Rule Builder',
+    nav_docs: 'Documentation',
+    nav_logs: 'Logs',
+    onboard_title: 'Welcome to Axiom Studio',
+    onboard_subtitle: 'Build, test, and deploy verification rules with a visual editor. Powered by Z3 Theorem Prover.',
+    onboard_step1_title: '1. Add Rules',
+    onboard_step1_desc: 'Define range, comparison, exclusion, cardinality, unique, or negation rules using the visual form.',
+    onboard_step2_title: '2. Preview YAML',
+    onboard_step2_desc: 'See the generated axiomguard YAML in real-time. Download or copy with one click.',
+    onboard_step3_title: '3. Test Claims',
+    onboard_step3_desc: 'Verify claims against your rules instantly. See SAT/UNSAT results with violated rule details.',
+    onboard_step4_title: '4. Deploy',
+    onboard_step4_desc: 'Export your rules as YAML files ready for integration with any AxiomGuard-powered system.',
+    onboard_cta: 'Get Started',
+    onboard_dismiss: 'You can always revisit this guide from Settings.',
+    form_title: 'Rule Builder',
+    btn_generate: 'Generate Rules',
+    label_domain: 'Domain',
+    ph_domain: 'e.g. financial_report',
+    label_rule_type: 'Rule Type',
+    opt_range: 'Range (min/max bounds)',
+    opt_comparison: 'Comparison (left vs right)',
+    opt_exclusion: 'Exclusion (forbidden values)',
+    opt_cardinality: 'Cardinality (count constraint)',
+    opt_unique: 'Unique (no duplicates)',
+    opt_negation: 'Negation (must not be)',
+    label_severity: 'Severity',
+    sev_error: 'Error',
+    sev_warning: 'Warning',
+    sev_info: 'Info',
+    label_message: 'Error Message',
+    ph_message: 'Message shown when rule is violated',
+    btn_add_rule: 'Add Rule',
+    btn_update_rule: 'Update Rule',
+    btn_clear: 'Clear',
+    btn_cancel_edit: 'Cancel',
+    rules_list_title: 'Rules',
+    btn_clear_all: 'Clear All',
+    rules_empty: 'No rules yet. Add your first rule above.',
+    rules_empty_quick: 'Quick start — click to add:',
+    tab_yaml: 'YAML Preview',
+    tab_tester: 'Claim Tester',
+    tab_import: 'Import',
+    yaml_title: 'Generated YAML',
+    btn_copy: 'Copy',
+    btn_download: 'Download',
+    tester_title: 'Claim Tester',
+    label_subject: 'Subject',
+    ph_subject: 'e.g. revenue_q1',
+    label_relation: 'Relation',
+    ph_relation: 'e.g. equals',
+    label_value: 'Value',
+    ph_value: 'e.g. 1500000',
+    tester_select_rule: 'Select a rule to test',
+    tester_no_rules_opt: '-- Add rules first --',
+    tester_enter_value: 'Enter a value to test',
+    ph_tester_value: 'e.g. 500000',
+    tester_advanced: 'Advanced: manual Subject/Relation/Value',
+    btn_verify: 'Verify Claim',
+    import_title: 'Import YAML',
+    label_paste_yaml: 'Paste YAML content',
+    ph_paste_yaml: 'Paste your .axiom.yml content here...',
+    btn_import_text: 'Import from Text',
+    btn_import_file: 'Upload File',
+    gen_preset_label: 'Choose an industry template:',
+    gen_or: 'or write your own',
+    preset_medical: 'Medical',
+    preset_banking: 'Banking',
+    preset_hr: 'HR',
+    preset_ecommerce: 'E-Commerce',
+    preset_insurance: 'Insurance',
+    preset_education: 'Education',
+    preset_custom: 'Other / Custom',
+    gen_title: 'Generate Rules from Text',
+    gen_label_text: 'Paste your policy, specification, or constraint text',
+    gen_ph_text: 'e.g. Revenue must be between 0 and 10 million. Expenses cannot exceed revenue. Department names must be unique.',
+    gen_label_domain: 'Domain name',
+    gen_ph_domain: 'e.g. financial_report',
+    btn_analyze: 'Analyze',
+    gen_suggestions_title: 'Suggested Rules',
+    btn_approve_all: 'Approve All',
+    gen_analyzing: 'Analyzing text and generating rules...',
+    btn_approve: 'Approve',
+    btn_edit: 'Edit',
+    btn_reject: 'Reject',
+    // Dynamic field labels
+    label_entity: 'Entity',
+    ph_entity: 'e.g. revenue',
+    label_min: 'Minimum',
+    ph_min: 'e.g. 0',
+    label_max: 'Maximum',
+    ph_max: 'e.g. 10000000',
+    label_left: 'Left Operand',
+    ph_left: 'e.g. expenses',
+    label_right: 'Right Operand',
+    ph_right: 'e.g. revenue',
+    label_operator: 'Operator',
+    opt_lte: 'Less than or equal (<=)',
+    opt_lt: 'Less than (<)',
+    opt_gte: 'Greater than or equal (>=)',
+    opt_gt: 'Greater than (>)',
+    opt_eq: 'Equal (==)',
+    opt_neq: 'Not equal (!=)',
+    label_multiplier: 'Multiplier',
+    ph_multiplier: 'e.g. 1.0 (optional)',
+    label_values: 'Forbidden Values',
+    ph_values: 'Comma-separated, e.g. N/A, TBD, null',
+    label_relation_field: 'Relation',
+    ph_relation_field: 'e.g. count_of',
+    label_at_most: 'At Most',
+    ph_at_most: 'e.g. 5',
+    label_at_least: 'At Least',
+    ph_at_least: 'e.g. 1',
+    label_unique_entity: 'Entity',
+    ph_unique_entity: 'e.g. department_name',
+    label_unique_relation: 'Relation',
+    ph_unique_relation: 'e.g. belongs_to',
+    label_neg_entity: 'Entity',
+    ph_neg_entity: 'e.g. status',
+    label_neg_values: 'Forbidden Values',
+    ph_neg_values: 'Comma-separated, e.g. inactive, suspended',
+    // Toasts
+    toast_rule_added: 'Rule added successfully',
+    toast_rule_updated: 'Rule updated successfully',
+    toast_rule_removed: 'Rule removed',
+    toast_rules_cleared: 'All rules cleared',
+    toast_yaml_copied: 'YAML copied to clipboard',
+    toast_yaml_downloaded: 'YAML file downloaded',
+    toast_import_success: 'Imported {count} rules from "{domain}" domain',
+    toast_import_error: 'Import failed: {error}',
+    toast_verify_sat: 'SAT - Claim is consistent with the rules',
+    toast_verify_unsat: 'UNSAT - Claim violates the rules',
+    toast_logs_coming: 'Logs viewer coming in a future update',
+    toast_settings_coming: 'Settings panel coming in a future update',
+    toast_form_incomplete: 'Please fill in all required fields',
+    toast_generate_no_text: 'Please enter some text to analyze',
+    toast_approved: 'Rule approved and added',
+    toast_rejected: 'Suggestion rejected',
+    toast_all_approved: 'All suggestions approved',
+    // Verify result
+    verify_sat_title: 'SAT - Claim Verified',
+    verify_sat_desc: 'The claim is consistent with all defined rules.',
+    verify_unsat_title: 'UNSAT - Hallucination Detected',
+    verify_unsat_desc: 'The claim violates one or more rules.',
+    verify_reason: 'Reason',
+    verify_violated: 'Violated Rules',
+    verify_error_title: 'Verification Error',
+    verify_unknown_title: 'Inconclusive - Z3 Timeout',
+    verify_unknown_desc: 'Z3 could not verify in time. This does NOT mean the claim is valid. Try simplifying the rules or testing with a smaller value.',
+    verify_checking: 'Verifying...',
+    // Rule type descriptions & examples
+    btn_try_example: 'Try Example',
+    label_advanced: 'Advanced options',
+    label_advanced_hint: '(severity, message, domain)',
+    ph_message_auto: 'Auto-generated if left empty',
+    empty_yaml_title: 'Your rules will appear here',
+    empty_yaml_desc: 'Add rules from the left panel or use Quick Start templates below the form.',
+    usage_title: 'How to use this file',
+    usage_step1: '1. Save as <code class="bg-bg px-1 rounded text-primary/80">rules.axiom.yml</code> in your project',
+    usage_step2: '2. Install: <code class="bg-bg px-1 rounded text-primary/80">pip install axiomguard</code>',
+    usage_step3: '3. Use in Python:',
+    next_step_title: 'What next?',
+    next_step_test: 'Test this rule',
+    next_step_more: 'Add more rules',
+    next_step_export: 'Export YAML',
+    desc_range: 'Set min/max bounds for a numeric value. Example: revenue must be 0 - 1,000,000.',
+    desc_comparison: 'Compare two values. Example: expenses must not exceed revenue.',
+    desc_exclusion: 'Forbid specific values. Example: status must not be N/A or TBD.',
+    desc_cardinality: 'Limit how many values are allowed. Example: max 3 diagnoses per patient.',
+    desc_unique: 'Ensure no duplicate values. Example: each employee ID must be unique.',
+    desc_negation: 'Prohibit certain values. Example: medication must not include Aspirin.',
+  },
+  th: {
+    header_tagline: 'ตัวแก้ไขกฎแบบภาพสำหรับ AxiomGuard',
+    nav_builder: 'สร้างกฎ',
+    nav_docs: 'เอกสาร',
+    nav_logs: 'บันทึก',
+    onboard_title: 'ยินดีต้อนรับสู่ Axiom Studio',
+    onboard_subtitle: 'สร้าง ทดสอบ และ deploy กฎตรวจสอบด้วยตัวแก้ไขแบบภาพ ขับเคลื่อนโดย Z3 Theorem Prover',
+    onboard_step1_title: '1. เพิ่มกฎ',
+    onboard_step1_desc: 'กำหนดกฎประเภท range, comparison, exclusion, cardinality, unique หรือ negation ผ่านฟอร์มแบบภาพ',
+    onboard_step2_title: '2. ดูตัวอย่าง YAML',
+    onboard_step2_desc: 'ดู YAML ของ axiomguard ที่สร้างขึ้นแบบ real-time ดาวน์โหลดหรือคัดลอกได้ในคลิกเดียว',
+    onboard_step3_title: '3. ทดสอบ Claim',
+    onboard_step3_desc: 'ตรวจสอบ claim กับกฎทันที ดูผลลัพธ์ SAT/UNSAT พร้อมรายละเอียดกฎที่ถูกละเมิด',
+    onboard_step4_title: '4. Deploy',
+    onboard_step4_desc: 'ส่งออกกฎเป็นไฟล์ YAML พร้อมสำหรับเชื่อมต่อกับระบบที่ใช้ AxiomGuard',
+    onboard_cta: 'เริ่มต้นใช้งาน',
+    onboard_dismiss: 'คุณสามารถกลับมาดูคำแนะนำนี้ได้จากการตั้งค่า',
+    form_title: 'สร้างกฎ',
+    btn_generate: 'สร้างกฎอัตโนมัติ',
+    label_domain: 'โดเมน',
+    ph_domain: 'เช่น financial_report',
+    label_rule_type: 'ประเภทกฎ',
+    opt_range: 'Range (ขอบเขต min/max)',
+    opt_comparison: 'Comparison (เปรียบเทียบ)',
+    opt_exclusion: 'Exclusion (ค่าต้องห้าม)',
+    opt_cardinality: 'Cardinality (จำนวนสูงสุด/ต่ำสุด)',
+    opt_unique: 'Unique (ห้ามซ้ำ)',
+    opt_negation: 'Negation (ต้องไม่เป็น)',
+    label_severity: 'ระดับความรุนแรง',
+    sev_error: 'ข้อผิดพลาด (Error)',
+    sev_warning: 'คำเตือน (Warning)',
+    sev_info: 'ข้อมูล (Info)',
+    label_message: 'ข้อความแจ้งเตือน',
+    ph_message: 'ข้อความที่แสดงเมื่อกฎถูกละเมิด',
+    btn_add_rule: 'เพิ่มกฎ',
+    btn_update_rule: 'อัปเดตกฎ',
+    btn_clear: 'ล้าง',
+    btn_cancel_edit: 'ยกเลิก',
+    rules_list_title: 'รายการกฎ',
+    btn_clear_all: 'ล้างทั้งหมด',
+    rules_empty: 'ยังไม่มีกฎ เพิ่มกฎแรกของคุณด้านบน',
+    rules_empty_quick: 'เริ่มต้นเร็ว — กดเพื่อเพิ่มกฎ:',
+    tab_yaml: 'ตัวอย่าง YAML',
+    tab_tester: 'ทดสอบ Claim',
+    tab_import: 'นำเข้า',
+    yaml_title: 'YAML ที่สร้างขึ้น',
+    btn_copy: 'คัดลอก',
+    btn_download: 'ดาวน์โหลด',
+    tester_title: 'ทดสอบ Claim',
+    label_subject: 'หัวข้อ (Subject)',
+    ph_subject: 'เช่น revenue_q1',
+    label_relation: 'ความสัมพันธ์ (Relation)',
+    ph_relation: 'เช่น equals',
+    label_value: 'ค่า (Value)',
+    ph_value: 'เช่น 1500000',
+    tester_select_rule: 'เลือกกฎที่ต้องการทดสอบ',
+    tester_no_rules_opt: '-- เพิ่มกฎก่อน --',
+    tester_enter_value: 'กรอกค่าที่ต้องการทดสอบ',
+    ph_tester_value: 'เช่น 500000',
+    tester_advanced: 'ขั้นสูง: กรอก Subject/Relation/Value เอง',
+    btn_verify: 'ตรวจสอบ Claim',
+    import_title: 'นำเข้า YAML',
+    label_paste_yaml: 'วาง YAML ที่นี่',
+    ph_paste_yaml: 'วางเนื้อหา .axiom.yml ของคุณที่นี่...',
+    btn_import_text: 'นำเข้าจากข้อความ',
+    btn_import_file: 'อัปโหลดไฟล์',
+    gen_preset_label: 'เลือกเทมเพลตตามประเภทธุรกิจ:',
+    gen_or: 'หรือเขียนเอง',
+    preset_medical: 'การแพทย์',
+    preset_banking: 'ธนาคาร',
+    preset_hr: 'ทรัพยากรบุคคล',
+    preset_ecommerce: 'อีคอมเมิร์ซ',
+    preset_insurance: 'ประกันภัย',
+    preset_education: 'การศึกษา',
+    preset_custom: 'อื่นๆ / กำหนดเอง',
+    gen_title: 'สร้างกฎจากข้อความ',
+    gen_label_text: 'วางนโยบาย ข้อกำหนด หรือข้อจำกัดของคุณ',
+    gen_ph_text: 'เช่น รายได้ต้องอยู่ระหว่าง 0 ถึง 10 ล้าน ค่าใช้จ่ายต้องไม่เกินรายได้ ชื่อแผนกต้องไม่ซ้ำกัน',
+    gen_label_domain: 'ชื่อโดเมน',
+    gen_ph_domain: 'เช่น financial_report',
+    btn_analyze: 'วิเคราะห์',
+    gen_suggestions_title: 'กฎที่แนะนำ',
+    btn_approve_all: 'อนุมัติทั้งหมด',
+    gen_analyzing: 'กำลังวิเคราะห์ข้อความและสร้างกฎ...',
+    btn_approve: 'อนุมัติ',
+    btn_edit: 'แก้ไข',
+    btn_reject: 'ปฏิเสธ',
+    label_entity: 'สิ่งที่ตรวจสอบ (Entity)',
+    ph_entity: 'เช่น revenue',
+    label_min: 'ค่าต่ำสุด',
+    ph_min: 'เช่น 0',
+    label_max: 'ค่าสูงสุด',
+    ph_max: 'เช่น 10000000',
+    label_left: 'ตัวดำเนินการซ้าย',
+    ph_left: 'เช่น expenses',
+    label_right: 'ตัวดำเนินการขวา',
+    ph_right: 'เช่น revenue',
+    label_operator: 'ตัวดำเนินการ',
+    opt_lte: 'น้อยกว่าหรือเท่ากับ (<=)',
+    opt_lt: 'น้อยกว่า (<)',
+    opt_gte: 'มากกว่าหรือเท่ากับ (>=)',
+    opt_gt: 'มากกว่า (>)',
+    opt_eq: 'เท่ากับ (==)',
+    opt_neq: 'ไม่เท่ากับ (!=)',
+    label_multiplier: 'ตัวคูณ',
+    ph_multiplier: 'เช่น 1.0 (ไม่บังคับ)',
+    label_values: 'ค่าต้องห้าม',
+    ph_values: 'คั่นด้วยเครื่องหมายจุลภาค เช่น N/A, TBD, null',
+    label_relation_field: 'ความสัมพันธ์ (Relation)',
+    ph_relation_field: 'เช่น count_of',
+    label_at_most: 'มากสุด',
+    ph_at_most: 'เช่น 5',
+    label_at_least: 'น้อยสุด',
+    ph_at_least: 'เช่น 1',
+    label_unique_entity: 'สิ่งที่ตรวจสอบ (Entity)',
+    ph_unique_entity: 'เช่น department_name',
+    label_unique_relation: 'ความสัมพันธ์ (Relation)',
+    ph_unique_relation: 'เช่น belongs_to',
+    label_neg_entity: 'สิ่งที่ตรวจสอบ (Entity)',
+    ph_neg_entity: 'เช่น status',
+    label_neg_values: 'ค่าต้องห้าม',
+    ph_neg_values: 'คั่นด้วยเครื่องหมายจุลภาค เช่น inactive, suspended',
+    toast_rule_added: 'เพิ่มกฎสำเร็จ',
+    toast_rule_updated: 'อัปเดตกฎสำเร็จ',
+    toast_rule_removed: 'ลบกฎแล้ว',
+    toast_rules_cleared: 'ล้างกฎทั้งหมดแล้ว',
+    toast_yaml_copied: 'คัดลอก YAML แล้ว',
+    toast_yaml_downloaded: 'ดาวน์โหลดไฟล์ YAML แล้ว',
+    toast_import_success: 'นำเข้า {count} กฎจากโดเมน "{domain}" สำเร็จ',
+    toast_import_error: 'นำเข้าล้มเหลว: {error}',
+    toast_verify_sat: 'SAT - Claim สอดคล้องกับกฎทั้งหมด',
+    toast_verify_unsat: 'UNSAT - Claim ละเมิดกฎ',
+    toast_logs_coming: 'ตัวดูบันทึกจะมาในอัปเดตถัดไป',
+    toast_settings_coming: 'แผงตั้งค่าจะมาในอัปเดตถัดไป',
+    toast_form_incomplete: 'กรุณากรอกข้อมูลที่จำเป็นทั้งหมด',
+    toast_generate_no_text: 'กรุณากรอกข้อความเพื่อวิเคราะห์',
+    toast_approved: 'อนุมัติและเพิ่มกฎแล้ว',
+    toast_rejected: 'ปฏิเสธข้อเสนอแนะแล้ว',
+    toast_all_approved: 'อนุมัติข้อเสนอแนะทั้งหมดแล้ว',
+    verify_sat_title: 'SAT - Claim ผ่านการตรวจสอบ',
+    verify_sat_desc: 'Claim สอดคล้องกับกฎที่กำหนดทั้งหมด',
+    verify_unsat_title: 'UNSAT - ตรวจพบ Hallucination',
+    verify_unsat_desc: 'Claim ละเมิดกฎอย่างน้อยหนึ่งข้อ',
+    verify_reason: 'เหตุผล',
+    verify_violated: 'กฎที่ถูกละเมิด',
+    verify_error_title: 'เกิดข้อผิดพลาดในการตรวจสอบ',
+    verify_unknown_title: 'ไม่สามารถสรุปผลได้ - Z3 หมดเวลา',
+    verify_unknown_desc: 'Z3 ตรวจสอบไม่ทันเวลา ไม่ได้หมายความว่าค่านี้ถูกต้อง ลองลดจำนวนกฎ หรือทดสอบด้วยค่าที่เล็กลง',
+    verify_checking: 'กำลังตรวจสอบ...',
+    btn_try_example: 'ลองตัวอย่าง',
+    label_advanced: 'ตัวเลือกขั้นสูง',
+    label_advanced_hint: '(ระดับความรุนแรง, ข้อความ, โดเมน)',
+    ph_message_auto: 'สร้างอัตโนมัติถ้าเว้นว่าง',
+    empty_yaml_title: 'กฎของคุณจะแสดงที่นี่',
+    empty_yaml_desc: 'เพิ่มกฎจากแผงด้านซ้าย หรือใช้ Quick Start ด้านล่างฟอร์ม',
+    usage_title: 'วิธีใช้งานไฟล์นี้',
+    usage_step1: '1. บันทึกเป็น <code class="bg-bg px-1 rounded text-primary/80">rules.axiom.yml</code> ในโปรเจคของคุณ',
+    usage_step2: '2. ติดตั้ง: <code class="bg-bg px-1 rounded text-primary/80">pip install axiomguard</code>',
+    usage_step3: '3. ใช้งานใน Python:',
+    next_step_title: 'ทำอะไรต่อ?',
+    next_step_test: 'ทดสอบกฎนี้',
+    next_step_more: 'เพิ่มกฎอีก',
+    next_step_export: 'ส่งออก YAML',
+    desc_range: 'กำหนดขอบเขต min/max ของค่าตัวเลข ตัวอย่าง: รายได้ต้องอยู่ระหว่าง 0 - 1,000,000',
+    desc_comparison: 'เปรียบเทียบสองค่า ตัวอย่าง: ค่าใช้จ่ายต้องไม่เกินรายได้',
+    desc_exclusion: 'ห้ามใช้ค่าบางค่า ตัวอย่าง: สถานะต้องไม่เป็น N/A หรือ TBD',
+    desc_cardinality: 'จำกัดจำนวนค่าที่อนุญาต ตัวอย่าง: ผู้ป่วย 1 คนมีการวินิจฉัยได้สูงสุด 3 รายการ',
+    desc_unique: 'ห้ามค่าซ้ำกัน ตัวอย่าง: รหัสพนักงานแต่ละคนต้องไม่ซ้ำ',
+    desc_negation: 'ห้ามค่าบางอย่าง ตัวอย่าง: ยาที่ใช้ต้องไม่มี Aspirin',
+  },
+};
+
+function t(key) {
+  return i18n[currentLang][key] || i18n['en'][key] || key;
+}
+
+// =====================================================================
+// LANGUAGE TOGGLE
+// =====================================================================
+function toggleLang() {
+  currentLang = currentLang === 'en' ? 'th' : 'en';
+  document.getElementById('lang-label').textContent = currentLang === 'en' ? 'EN' : 'TH';
+  applyTranslations();
+  onRuleTypeChange();
+  renderRulesList();
+  updateYamlPreview();
+  updateSelectOptions();
+}
+
+const HTML_I18N_KEYS = new Set(['usage_step1', 'usage_step2', 'usage_step3']);
+
+function applyTranslations() {
+  document.querySelectorAll('[data-i18n]').forEach(el => {
+    const key = el.getAttribute('data-i18n');
+    if (i18n[currentLang][key]) {
+      if (HTML_I18N_KEYS.has(key)) {
+        el.innerHTML = i18n[currentLang][key];
+      } else {
+        el.textContent = i18n[currentLang][key];
+      }
+    }
+  });
+  document.querySelectorAll('[data-i18n-placeholder]').forEach(el => {
+    const key = el.getAttribute('data-i18n-placeholder');
+    if (i18n[currentLang][key]) {
+      el.placeholder = i18n[currentLang][key];
+    }
+  });
+}
+
+function updateSelectOptions() {
+  const sel = document.getElementById('select-rule-type');
+  const options = sel.querySelectorAll('option');
+  options.forEach(opt => {
+    const key = opt.getAttribute('data-i18n-option');
+    if (key && i18n[currentLang][key]) {
+      opt.textContent = i18n[currentLang][key];
+    }
+  });
+}
+
+// =====================================================================
+// SCREEN MANAGEMENT
+// =====================================================================
+function showScreen(screen) {
+  document.getElementById('screen-onboarding').classList.add('hidden');
+  document.getElementById('screen-builder').classList.add('hidden');
+  if (screen === 'onboarding') {
+    document.getElementById('screen-onboarding').classList.remove('hidden');
+  } else if (screen === 'builder') {
+    document.getElementById('screen-builder').classList.remove('hidden');
+  }
+  // Update nav active state
+  document.getElementById('nav-builder').classList.toggle('active', screen === 'builder');
+}
+
+function dismissOnboarding() {
+  localStorage.setItem('axiom_studio_onboarded', 'true');
+  showScreen('builder');
+}
+
+// =====================================================================
+// RULE TYPE -> DYNAMIC FIELDS
+// =====================================================================
+function updateRuleTypeHint() {
+  const ruleType = document.getElementById('select-rule-type').value;
+  const descEl = document.getElementById('rule-type-desc');
+  if (descEl) descEl.textContent = t('desc_' + ruleType);
+}
+
+function fillExample() {
+  const ruleType = document.getElementById('select-rule-type').value;
+  const domain = document.getElementById('input-domain');
+
+  const examples = {
+    range: { domain: 'financial_report', entity: 'revenue', min: '0', max: '1000000', severity: 'error', message: 'Revenue must be between 0 and 1,000,000' },
+    comparison: { domain: 'financial_report', left: 'expenses', right: 'revenue', operator: '<=', multiplier: '1', severity: 'error', message: 'Expenses must not exceed revenue' },
+    exclusion: { domain: 'hr_system', entity: 'status', values: 'N/A, TBD, null, unknown', severity: 'error', message: 'Status must not be a placeholder value' },
+    cardinality: { domain: 'medical_records', entity: 'patient', relation: 'diagnosis', at_most: '3', severity: 'warning', message: 'A patient should have at most 3 primary diagnoses' },
+    unique: { domain: 'hr_system', entity: 'employee', relation: 'employee_id', severity: 'error', message: 'Employee ID must be unique' },
+    negation: { domain: 'medical_records', entity: 'patient', values: 'Aspirin, Warfarin', severity: 'error', message: 'These medications are contraindicated' },
+  };
+
+  const ex = examples[ruleType];
+  if (!ex) return;
+
+  domain.value = ex.domain;
+  const domainVis = document.getElementById('input-domain-visible');
+  if (domainVis) domainVis.value = ex.domain;
+  onRuleTypeChange();
+
+  setTimeout(() => {
+    if (ex.entity) { const el = document.getElementById('field-entity'); if (el) el.value = ex.entity; }
+    if (ex.min) { const el = document.getElementById('field-min'); if (el) el.value = ex.min; }
+    if (ex.max) { const el = document.getElementById('field-max'); if (el) el.value = ex.max; }
+    if (ex.left) { const el = document.getElementById('field-left'); if (el) el.value = ex.left; }
+    if (ex.right) { const el = document.getElementById('field-right'); if (el) el.value = ex.right; }
+    if (ex.operator) { const el = document.getElementById('field-operator'); if (el) el.value = ex.operator; }
+    if (ex.multiplier) { const el = document.getElementById('field-multiplier'); if (el) el.value = ex.multiplier; }
+    if (ex.values) { const el = document.getElementById('field-values'); if (el) el.value = ex.values; }
+    if (ex.relation) { const el = document.getElementById('field-relation'); if (el) el.value = ex.relation; }
+    if (ex.at_most) { const el = document.getElementById('field-at-most'); if (el) el.value = ex.at_most; }
+    if (ex.at_least) { const el = document.getElementById('field-at-least'); if (el) el.value = ex.at_least; }
+    if (ex.severity) selectSeverity(ex.severity);
+    if (ex.message) document.getElementById('input-message').value = ex.message;
+  }, 10);
+
+  showToast(t('toast_rule_added').replace('successfully', '— ' + t('btn_try_example')), 'info');
+}
+
+function onRuleTypeChange() {
+  const ruleType = document.getElementById('select-rule-type').value;
+  const container = document.getElementById('dynamic-fields');
+  let html = '';
+
+  updateRuleTypeHint();
+
+  switch (ruleType) {
+    case 'range':
+      html = `
+        <div>
+          <label class="text-xs font-medium text-text-secondary mb-1 block">${t('label_entity')}</label>
+          <input type="text" id="field-entity" class="w-full bg-surface-alt border border-border rounded-lg px-3 py-2 text-sm text-text-primary placeholder-text-muted" placeholder="${t('ph_entity')}">
+        </div>
+        <div class="grid grid-cols-2 gap-3">
+          <div>
+            <label class="text-xs font-medium text-text-secondary mb-1 block">${t('label_min')}</label>
+            <input type="number" id="field-min" class="w-full bg-surface-alt border border-border rounded-lg px-3 py-2 text-sm text-text-primary placeholder-text-muted" placeholder="${t('ph_min')}">
+          </div>
+          <div>
+            <label class="text-xs font-medium text-text-secondary mb-1 block">${t('label_max')}</label>
+            <input type="number" id="field-max" class="w-full bg-surface-alt border border-border rounded-lg px-3 py-2 text-sm text-text-primary placeholder-text-muted" placeholder="${t('ph_max')}">
+          </div>
+        </div>`;
+      break;
+
+    case 'comparison':
+      html = `
+        <div class="grid grid-cols-2 gap-3">
+          <div>
+            <label class="text-xs font-medium text-text-secondary mb-1 block">${t('label_left')}</label>
+            <input type="text" id="field-left" class="w-full bg-surface-alt border border-border rounded-lg px-3 py-2 text-sm text-text-primary placeholder-text-muted" placeholder="${t('ph_left')}">
+          </div>
+          <div>
+            <label class="text-xs font-medium text-text-secondary mb-1 block">${t('label_right')}</label>
+            <input type="text" id="field-right" class="w-full bg-surface-alt border border-border rounded-lg px-3 py-2 text-sm text-text-primary placeholder-text-muted" placeholder="${t('ph_right')}">
+          </div>
+        </div>
+        <div>
+          <label class="text-xs font-medium text-text-secondary mb-1 block">${t('label_operator')}</label>
+          <select id="field-operator" class="w-full bg-surface-alt border border-border rounded-lg px-3 py-2 text-sm text-text-primary cursor-pointer">
+            <option value="<=">${t('opt_lte')}</option>
+            <option value="<">${t('opt_lt')}</option>
+            <option value=">=">${t('opt_gte')}</option>
+            <option value=">">${t('opt_gt')}</option>
+            <option value="==">${t('opt_eq')}</option>
+            <option value="!=">${t('opt_neq')}</option>
+          </select>
+        </div>
+        <div>
+          <label class="text-xs font-medium text-text-secondary mb-1 block">${t('label_multiplier')}</label>
+          <input type="number" step="0.01" id="field-multiplier" class="w-full bg-surface-alt border border-border rounded-lg px-3 py-2 text-sm text-text-primary placeholder-text-muted" placeholder="${t('ph_multiplier')}">
+        </div>`;
+      break;
+
+    case 'exclusion':
+      html = `
+        <div>
+          <label class="text-xs font-medium text-text-secondary mb-1 block">${t('label_entity')}</label>
+          <input type="text" id="field-entity" class="w-full bg-surface-alt border border-border rounded-lg px-3 py-2 text-sm text-text-primary placeholder-text-muted" placeholder="${t('ph_entity')}">
+        </div>
+        <div>
+          <label class="text-xs font-medium text-text-secondary mb-1 block">${t('label_values')}</label>
+          <input type="text" id="field-values" class="w-full bg-surface-alt border border-border rounded-lg px-3 py-2 text-sm text-text-primary placeholder-text-muted" placeholder="${t('ph_values')}">
+        </div>`;
+      break;
+
+    case 'cardinality':
+      html = `
+        <div>
+          <label class="text-xs font-medium text-text-secondary mb-1 block">${t('label_entity')}</label>
+          <input type="text" id="field-entity" class="w-full bg-surface-alt border border-border rounded-lg px-3 py-2 text-sm text-text-primary placeholder-text-muted" placeholder="${t('ph_entity')}">
+        </div>
+        <div>
+          <label class="text-xs font-medium text-text-secondary mb-1 block">${t('label_relation_field')}</label>
+          <input type="text" id="field-relation" class="w-full bg-surface-alt border border-border rounded-lg px-3 py-2 text-sm text-text-primary placeholder-text-muted" placeholder="${t('ph_relation_field')}">
+        </div>
+        <div class="grid grid-cols-2 gap-3">
+          <div>
+            <label class="text-xs font-medium text-text-secondary mb-1 block">${t('label_at_most')}</label>
+            <input type="number" id="field-at-most" class="w-full bg-surface-alt border border-border rounded-lg px-3 py-2 text-sm text-text-primary placeholder-text-muted" placeholder="${t('ph_at_most')}">
+          </div>
+          <div>
+            <label class="text-xs font-medium text-text-secondary mb-1 block">${t('label_at_least')}</label>
+            <input type="number" id="field-at-least" class="w-full bg-surface-alt border border-border rounded-lg px-3 py-2 text-sm text-text-primary placeholder-text-muted" placeholder="${t('ph_at_least')}">
+          </div>
+        </div>`;
+      break;
+
+    case 'unique':
+      html = `
+        <div>
+          <label class="text-xs font-medium text-text-secondary mb-1 block">${t('label_unique_entity')}</label>
+          <input type="text" id="field-entity" class="w-full bg-surface-alt border border-border rounded-lg px-3 py-2 text-sm text-text-primary placeholder-text-muted" placeholder="${t('ph_unique_entity')}">
+        </div>
+        <div>
+          <label class="text-xs font-medium text-text-secondary mb-1 block">${t('label_unique_relation')}</label>
+          <input type="text" id="field-relation" class="w-full bg-surface-alt border border-border rounded-lg px-3 py-2 text-sm text-text-primary placeholder-text-muted" placeholder="${t('ph_unique_relation')}">
+        </div>`;
+      break;
+
+    case 'negation':
+      html = `
+        <div>
+          <label class="text-xs font-medium text-text-secondary mb-1 block">${t('label_neg_entity')}</label>
+          <input type="text" id="field-entity" class="w-full bg-surface-alt border border-border rounded-lg px-3 py-2 text-sm text-text-primary placeholder-text-muted" placeholder="${t('ph_neg_entity')}">
+        </div>
+        <div>
+          <label class="text-xs font-medium text-text-secondary mb-1 block">${t('label_neg_values')}</label>
+          <input type="text" id="field-values" class="w-full bg-surface-alt border border-border rounded-lg px-3 py-2 text-sm text-text-primary placeholder-text-muted" placeholder="${t('ph_neg_values')}">
+        </div>`;
+      break;
+  }
+
+  container.innerHTML = html;
+}
+
+// =====================================================================
+// SEVERITY
+// =====================================================================
+function selectSeverity(sev) {
+  currentSeverity = sev;
+  document.querySelectorAll('#severity-group .severity-btn').forEach(btn => {
+    const s = btn.getAttribute('data-severity');
+    btn.className = 'severity-btn' + (s === sev ? (' active-' + s) : '');
+  });
+}
+
+// =====================================================================
+// ADD / EDIT / REMOVE RULES
+// =====================================================================
+function autoGenerateMessage(rule) {
+  switch (rule.type) {
+    case 'range': {
+      const parts = [];
+      if (rule.min !== undefined) parts.push(`>= ${rule.min}`);
+      if (rule.max !== undefined) parts.push(`<= ${rule.max}`);
+      return `${rule.entity} must be ${parts.join(' and ')}`;
+    }
+    case 'comparison':
+      return `${rule.left} must be ${rule.operator} ${rule.right}${rule.multiplier ? ' * ' + rule.multiplier : ''}`;
+    case 'exclusion':
+      return `${rule.entity} must not be: ${(rule.values || []).join(', ')}`;
+    case 'cardinality': {
+      const parts = [];
+      if (rule.at_most !== undefined) parts.push(`at most ${rule.at_most}`);
+      if (rule.at_least !== undefined) parts.push(`at least ${rule.at_least}`);
+      return `${rule.entity} must have ${parts.join(' and ')} values`;
+    }
+    case 'unique':
+      return `${rule.entity} must be unique`;
+    case 'negation':
+      return `${rule.entity} must not include: ${(rule.values || []).join(', ')}`;
+    default:
+      return '';
+  }
+}
+
+function collectFormData() {
+  const ruleType = document.getElementById('select-rule-type').value;
+  const rule = { type: ruleType, severity: currentSeverity };
+
+  const msgEl = document.getElementById('input-message');
+  if (msgEl && msgEl.value.trim()) {
+    rule.message = msgEl.value.trim();
+  }
+
+  switch (ruleType) {
+    case 'range': {
+      const entity = document.getElementById('field-entity');
+      const min = document.getElementById('field-min');
+      const max = document.getElementById('field-max');
+      if (!entity || !entity.value.trim()) return null;
+      rule.entity = entity.value.trim();
+      if (min && min.value !== '') rule.min = parseFloat(min.value);
+      if (max && max.value !== '') rule.max = parseFloat(max.value);
+      if (rule.min === undefined && rule.max === undefined) return null;
+      break;
+    }
+    case 'comparison': {
+      const left = document.getElementById('field-left');
+      const right = document.getElementById('field-right');
+      const op = document.getElementById('field-operator');
+      const mult = document.getElementById('field-multiplier');
+      if (!left || !left.value.trim() || !right || !right.value.trim()) return null;
+      rule.left = left.value.trim();
+      rule.right = right.value.trim();
+      rule.operator = op ? op.value : '<=';
+      if (mult && mult.value !== '') rule.multiplier = parseFloat(mult.value);
+      break;
+    }
+    case 'exclusion': {
+      const entity = document.getElementById('field-entity');
+      const values = document.getElementById('field-values');
+      if (!entity || !entity.value.trim() || !values || !values.value.trim()) return null;
+      rule.entity = entity.value.trim();
+      rule.values = values.value.split(',').map(v => v.trim()).filter(v => v);
+      if (rule.values.length < 1) return null;
+      break;
+    }
+    case 'cardinality': {
+      const entity = document.getElementById('field-entity');
+      const rel = document.getElementById('field-relation');
+      const atMost = document.getElementById('field-at-most');
+      const atLeast = document.getElementById('field-at-least');
+      if (!entity || !entity.value.trim()) return null;
+      rule.entity = entity.value.trim();
+      if (rel && rel.value.trim()) rule.relation = rel.value.trim();
+      if (atMost && atMost.value !== '') rule.at_most = parseInt(atMost.value);
+      if (atLeast && atLeast.value !== '') rule.at_least = parseInt(atLeast.value);
+      if (rule.at_most === undefined && rule.at_least === undefined) return null;
+      break;
+    }
+    case 'unique': {
+      const entity = document.getElementById('field-entity');
+      const rel = document.getElementById('field-relation');
+      if (!entity || !entity.value.trim()) return null;
+      rule.entity = entity.value.trim();
+      if (rel && rel.value.trim()) rule.relation = rel.value.trim();
+      break;
+    }
+    case 'negation': {
+      const entity = document.getElementById('field-entity');
+      const values = document.getElementById('field-values');
+      if (!entity || !entity.value.trim() || !values || !values.value.trim()) return null;
+      rule.entity = entity.value.trim();
+      rule.values = values.value.split(',').map(v => v.trim()).filter(v => v);
+      if (rule.values.length < 1) return null;
+      break;
+    }
+  }
+
+  // Auto-generate message if empty
+  if (!rule.message) {
+    rule.message = autoGenerateMessage(rule);
+  }
+
+  return rule;
+}
+
+function suggestNextStep(rule) {
+  // Auto-fill Claim Tester with a test value based on the rule
+  const subjectEl = document.getElementById('claim-subject');
+  const relationEl = document.getElementById('claim-relation');
+  const valueEl = document.getElementById('claim-value');
+  const subjectManual = document.getElementById('claim-subject-manual');
+  const relationManual = document.getElementById('claim-relation-manual');
+  const valueManual = document.getElementById('claim-value-manual');
+  if (!subjectEl) return;
+
+  const entity = rule.entity || rule.left || '';
+  const relation = rule.relation || entity;
+  subjectEl.value = entity;
+  relationEl.value = relation;
+  // Also fill manual (advanced) fields
+  if (subjectManual) subjectManual.value = entity;
+  if (relationManual) relationManual.value = relation;
+
+  switch (rule.type) {
+    case 'range':
+      // Suggest a valid value (middle of range) so first test shows SAT
+      if (rule.min !== undefined && rule.max !== undefined) {
+        valueEl.value = String(Math.round((rule.min + rule.max) / 2));
+      } else if (rule.max !== undefined) {
+        valueEl.value = String(Math.round(rule.max / 2));
+      } else {
+        valueEl.value = String(rule.min !== undefined ? rule.min + 1 : '100');
+      }
+      break;
+    case 'comparison':
+      valueEl.value = '100';
+      break;
+    case 'exclusion':
+      valueEl.value = 'normal';
+      break;
+    case 'negation':
+      valueEl.value = 'safe_option';
+      break;
+    default:
+      valueEl.value = '1';
+  }
+
+  // Also fill manual value field
+  if (valueManual) valueManual.value = valueEl.value;
+
+  // Show next-step banner in rules area
+  const banner = document.getElementById('next-step-banner');
+  if (banner) banner.remove();
+
+  const container = document.getElementById('rules-list');
+  const bannerHtml = `
+    <div id="next-step-banner" class="bg-[#7ee78710] border border-[#7ee78733] rounded-lg px-3 py-2.5 mb-2 fade-in">
+      <p class="text-xs text-text-secondary mb-2">
+        <span class="material-symbols-outlined align-middle text-[#7ee787]" style="font-size:15px;">arrow_forward</span>
+        <strong class="text-text-primary">${t('next_step_title')}</strong>
+      </p>
+      <div class="flex gap-2">
+        <button onclick="switchRightTab('tester');document.getElementById('next-step-banner')?.remove()" class="text-xs bg-[#7ee78720] hover:bg-[#7ee78733] text-[#7ee787] border border-[#7ee78744] rounded-lg px-3 py-1.5 transition-all flex items-center gap-1 font-medium">
+          <span class="material-symbols-outlined" style="font-size:14px;">science</span>
+          ${t('next_step_test')}
+        </button>
+        <button onclick="document.getElementById('next-step-banner')?.remove()" class="text-xs bg-surface-alt hover:bg-surface-bright text-text-muted border border-border rounded-lg px-3 py-1.5 transition-all flex items-center gap-1">
+          <span class="material-symbols-outlined" style="font-size:14px;">add</span>
+          ${t('next_step_more')}
+        </button>
+        <button onclick="switchRightTab('yaml');document.getElementById('next-step-banner')?.remove()" class="text-xs bg-surface-alt hover:bg-surface-bright text-text-muted border border-border rounded-lg px-3 py-1.5 transition-all flex items-center gap-1">
+          <span class="material-symbols-outlined" style="font-size:14px;">download</span>
+          ${t('next_step_export')}
+        </button>
+      </div>
+    </div>`;
+  container.insertAdjacentHTML('afterbegin', bannerHtml);
+  // Scroll banner into view
+  document.getElementById('next-step-banner')?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+}
+
+function quickAdd(type, entityOrLeft, minOrRight, maxOrOp) {
+  let rule;
+  switch (type) {
+    case 'range':
+      rule = { type: 'range', entity: entityOrLeft, min: parseFloat(minOrRight), max: parseFloat(maxOrOp), severity: 'error' };
+      break;
+    case 'comparison':
+      rule = { type: 'comparison', left: entityOrLeft, right: minOrRight, operator: maxOrOp, severity: 'error' };
+      break;
+    case 'exclusion':
+      rule = { type: 'exclusion', entity: entityOrLeft, values: minOrRight.split(',').map(v => v.trim()), severity: 'error' };
+      break;
+    case 'negation':
+      rule = { type: 'negation', entity: entityOrLeft, values: minOrRight.split(',').map(v => v.trim()), severity: 'error' };
+      break;
+  }
+  if (rule) {
+    rule.message = autoGenerateMessage(rule);
+    rules.push(rule);
+    renderRulesList();
+    updateYamlPreview();
+    showToast(t('toast_rule_added'), 'success');
+    suggestNextStep(rule);
+    setTimeout(() => {
+      const newCard = document.getElementById('rule-card-' + (rules.length - 1));
+      if (newCard) {
+        newCard.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+        newCard.classList.add('pulse-new');
+      }
+    }, 50);
+  }
+}
+
+function addRule() {
+  const rule = collectFormData();
+  if (!rule) {
+    showToast(t('toast_form_incomplete'), 'warning');
+    return;
+  }
+
+  if (editingIndex >= 0) {
+    rules[editingIndex] = rule;
+    editingIndex = -1;
+    updateAddButton(false);
+    showToast(t('toast_rule_updated'), 'success');
+  } else {
+    rules.push(rule);
+    showToast(t('toast_rule_added'), 'success');
+  }
+
+  clearForm();
+  renderRulesList();
+  updateYamlPreview();
+  suggestNextStep(rule);
+  // Scroll to + pulse the new rule card
+  setTimeout(() => {
+    const newCard = document.getElementById('rule-card-' + (rules.length - 1));
+    if (newCard) {
+      newCard.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+      newCard.classList.add('pulse-new');
+    }
+  }, 50);
+}
+
+function removeRule(index) {
+  rules.splice(index, 1);
+  if (editingIndex === index) {
+    editingIndex = -1;
+    updateAddButton(false);
+  } else if (editingIndex > index) {
+    editingIndex--;
+  }
+  renderRulesList();
+  updateYamlPreview();
+  showToast(t('toast_rule_removed'), 'info');
+}
+
+function editRule(index) {
+  const rule = rules[index];
+  editingIndex = index;
+
+  document.getElementById('select-rule-type').value = rule.type;
+  onRuleTypeChange();
+
+  // Populate fields synchronously — DOM is ready after onRuleTypeChange innerHTML
+  selectSeverity(rule.severity || 'error');
+  const msgEl = document.getElementById('input-message');
+  if (msgEl) msgEl.value = rule.message || '';
+
+  switch (rule.type) {
+    case 'range':
+      if (document.getElementById('field-entity')) document.getElementById('field-entity').value = rule.entity || '';
+      if (document.getElementById('field-min')) document.getElementById('field-min').value = rule.min !== undefined ? rule.min : '';
+      if (document.getElementById('field-max')) document.getElementById('field-max').value = rule.max !== undefined ? rule.max : '';
+      break;
+    case 'comparison':
+      if (document.getElementById('field-left')) document.getElementById('field-left').value = rule.left || '';
+      if (document.getElementById('field-right')) document.getElementById('field-right').value = rule.right || '';
+      if (document.getElementById('field-operator')) document.getElementById('field-operator').value = rule.operator || '<=';
+      if (document.getElementById('field-multiplier')) document.getElementById('field-multiplier').value = rule.multiplier !== undefined ? rule.multiplier : '';
+      break;
+    case 'exclusion':
+      if (document.getElementById('field-entity')) document.getElementById('field-entity').value = rule.entity || '';
+      if (document.getElementById('field-values')) document.getElementById('field-values').value = (rule.values || []).join(', ');
+      break;
+    case 'cardinality':
+      if (document.getElementById('field-entity')) document.getElementById('field-entity').value = rule.entity || '';
+      if (document.getElementById('field-relation')) document.getElementById('field-relation').value = rule.relation || '';
+      if (document.getElementById('field-at-most')) document.getElementById('field-at-most').value = rule.at_most !== undefined ? rule.at_most : '';
+      if (document.getElementById('field-at-least')) document.getElementById('field-at-least').value = rule.at_least !== undefined ? rule.at_least : '';
+      break;
+    case 'unique':
+      if (document.getElementById('field-entity')) document.getElementById('field-entity').value = rule.entity || '';
+      if (document.getElementById('field-relation')) document.getElementById('field-relation').value = rule.relation || '';
+      break;
+    case 'negation':
+      if (document.getElementById('field-entity')) document.getElementById('field-entity').value = rule.entity || '';
+      if (document.getElementById('field-values')) document.getElementById('field-values').value = (rule.values || []).join(', ');
+      break;
+  }
+
+  updateAddButton(true);
+}
+
+function updateAddButton(isEditing) {
+  const addBtnLabel = document.getElementById('add-btn-label');
+  const clearBtnLabel = document.getElementById('clear-btn-label');
+  if (isEditing) {
+    if (addBtnLabel) {
+      addBtnLabel.textContent = t('btn_update_rule');
+      addBtnLabel.setAttribute('data-i18n', 'btn_update_rule');
+    }
+    if (clearBtnLabel) {
+      clearBtnLabel.textContent = t('btn_cancel_edit');
+      clearBtnLabel.setAttribute('data-i18n', 'btn_cancel_edit');
+    }
+  } else {
+    if (addBtnLabel) {
+      addBtnLabel.textContent = t('btn_add_rule');
+      addBtnLabel.setAttribute('data-i18n', 'btn_add_rule');
+    }
+    if (clearBtnLabel) {
+      clearBtnLabel.textContent = t('btn_clear');
+      clearBtnLabel.setAttribute('data-i18n', 'btn_clear');
+    }
+  }
+}
+
+function clearForm() {
+  document.getElementById('input-message').value = '';
+  editingIndex = -1;
+  updateAddButton(false);
+  selectSeverity('error');
+  onRuleTypeChange();
+}
+
+function clearAllRules() {
+  if (rules.length === 0) return;
+  rules = [];
+  editingIndex = -1;
+  updateAddButton(false);
+  renderRulesList();
+  updateYamlPreview();
+  showToast(t('toast_rules_cleared'), 'info');
+}
+
+// =====================================================================
+// RULES LIST RENDERING
+// =====================================================================
+function getRuleDescription(rule) {
+  switch (rule.type) {
+    case 'range': {
+      const parts = [];
+      if (rule.min !== undefined) parts.push(`min: ${rule.min}`);
+      if (rule.max !== undefined) parts.push(`max: ${rule.max}`);
+      return `${rule.entity} [${parts.join(', ')}]`;
+    }
+    case 'comparison':
+      return `${rule.left} ${rule.operator} ${rule.right}${rule.multiplier ? ' * ' + rule.multiplier : ''}`;
+    case 'exclusion':
+      return `${rule.entity} not in [${(rule.values || []).join(', ')}]`;
+    case 'cardinality': {
+      const parts = [];
+      if (rule.at_least !== undefined) parts.push(`>= ${rule.at_least}`);
+      if (rule.at_most !== undefined) parts.push(`<= ${rule.at_most}`);
+      return `${rule.entity} count ${parts.join(' & ')}`;
+    }
+    case 'unique':
+      return `${rule.entity}${rule.relation ? ' (' + rule.relation + ')' : ''} must be unique`;
+    case 'negation':
+      return `${rule.entity} must not be [${(rule.values || []).join(', ')}]`;
+    default:
+      return rule.type;
+  }
+}
+
+function getSeverityRailClass(severity) {
+  switch (severity) {
+    case 'error': return 'logic-rail-error';
+    case 'warning': return 'logic-rail-warning';
+    case 'info': return 'logic-rail';
+    default: return 'logic-rail';
+  }
+}
+
+function getSeverityBadge(severity) {
+  const colors = {
+    error: 'bg-error-container/30 text-error',
+    warning: 'bg-tertiary/20 text-tertiary',
+    info: 'bg-primary-container/20 text-primary',
+  };
+  const c = colors[severity] || colors.info;
+  return `<span class="text-[10px] px-1.5 py-0.5 rounded ${c} font-medium uppercase">${severity}</span>`;
+}
+
+function renderRulesList() {
+  const container = document.getElementById('rules-list');
+  const countEl = document.getElementById('rules-count');
+  const emptyMsg = document.getElementById('empty-rules-msg');
+
+  countEl.textContent = `(${rules.length})`;
+
+  if (rules.length === 0) {
+    container.innerHTML = `
+      <div id="empty-rules-msg" class="py-3">
+        <p class="text-text-muted text-sm text-center mb-3">${t('rules_empty_quick')}</p>
+        <div class="grid grid-cols-1 gap-1.5">
+          <button onclick="quickAdd('range','revenue','0','1000000')" class="quick-card text-left text-xs bg-surface-alt/50 hover:bg-surface-alt border border-border/30 hover:border-primary/30 rounded-lg px-3 py-2">
+            <span class="text-primary/80 font-medium">Range</span>
+            <span class="text-text-muted"> — revenue 0-1,000,000</span>
+          </button>
+          <button onclick="quickAdd('comparison','expenses','revenue','<=')" class="quick-card text-left text-xs bg-surface-alt/50 hover:bg-surface-alt border border-border/30 hover:border-primary/30 rounded-lg px-3 py-2">
+            <span class="text-primary/80 font-medium">Comparison</span>
+            <span class="text-text-muted"> — expenses &lt;= revenue</span>
+          </button>
+          <button onclick="quickAdd('negation','status','N/A,TBD,null','')" class="quick-card text-left text-xs bg-surface-alt/50 hover:bg-surface-alt border border-border/30 hover:border-primary/30 rounded-lg px-3 py-2">
+            <span class="text-primary/80 font-medium">Exclusion</span>
+            <span class="text-text-muted"> — status not N/A, TBD, null</span>
+          </button>
+        </div>
+      </div>`;
+    return;
+  }
+
+  let html = '';
+  rules.forEach((rule, i) => {
+    const railClass = getSeverityRailClass(rule.severity);
+    const isEditing = editingIndex === i;
+    html += `
+      <div class="${railClass} rule-type-${escapeHtml(rule.type)} bg-surface-alt rounded-lg p-3 border-l-[3px] fade-in ${isEditing ? 'ring-1 ring-primary-container' : ''}" id="rule-card-${i}" style="animation-delay:${i * 0.03}s">
+        <div class="flex items-start justify-between gap-2">
+          <div class="flex-1 min-w-0">
+            <div class="flex items-center gap-2 mb-1">
+              <span class="text-xs font-semibold text-primary font-headline uppercase">${escapeHtml(rule.type)}</span>
+              ${getSeverityBadge(rule.severity)}
+            </div>
+            <p class="text-sm text-text-primary truncate">${escapeHtml(getRuleDescription(rule))}</p>
+            ${rule.message ? `<p class="text-xs text-text-muted mt-0.5 truncate">${escapeHtml(rule['msg_' + currentLang] || rule.message)}</p>` : ''}
+          </div>
+          <div class="flex items-center gap-1 flex-shrink-0">
+            <button onclick="editRule(${i})" class="p-1 rounded hover:bg-surface-bright transition-colors" title="${t('btn_edit')}">
+              <span class="material-symbols-outlined text-text-muted hover:text-primary" style="font-size:16px;">edit</span>
+            </button>
+            <button onclick="removeRule(${i})" class="p-1 rounded hover:bg-surface-bright transition-colors" title="${t('btn_reject')}">
+              <span class="material-symbols-outlined text-text-muted hover:text-error" style="font-size:16px;">delete</span>
+            </button>
+          </div>
+        </div>
+      </div>`;
+  });
+
+  container.innerHTML = html;
+  updateTesterRuleOptions();
+}
+
+// =====================================================================
+// YAML PREVIEW
+// =====================================================================
+function generateYaml() {
+  const domain = document.getElementById('input-domain').value.trim() || 'my_domain';
+  if (rules.length === 0) {
+    return `axiomguard: "0.7"\ndomain: ${domain}\nrules: []`;
+  }
+
+  let yaml = `axiomguard: "0.7"\ndomain: ${domain}\nrules:\n`;
+
+  rules.forEach((rule, idx) => {
+    const ruleName = `${rule.entity || rule.left || 'rule'}_${rule.type}_${idx + 1}`;
+    yaml += `  - name: "${ruleName}"\n`;
+    yaml += `    type: ${rule.type}\n`;
+
+    switch (rule.type) {
+      case 'range':
+        yaml += `    entity: ${rule.entity}\n`;
+        yaml += `    relation: ${rule.entity}\n`;
+        if (rule.min !== undefined) yaml += `    min: ${rule.min}\n`;
+        if (rule.max !== undefined) yaml += `    max: ${rule.max}\n`;
+        break;
+      case 'comparison':
+        yaml += `    entity: ${rule.left}\n`;
+        yaml += `    left:\n`;
+        yaml += `      relation: ${rule.left}\n`;
+        yaml += `      value_type: int\n`;
+        yaml += `    operator: "${rule.operator}"\n`;
+        yaml += `    right:\n`;
+        yaml += `      relation: ${rule.right}\n`;
+        yaml += `      value_type: int\n`;
+        if (rule.multiplier !== undefined) yaml += `      multiplier: ${rule.multiplier}\n`;
+        break;
+      case 'exclusion':
+        yaml += `    entity: ${rule.entity}\n`;
+        yaml += `    relation: ${rule.entity}\n`;
+        yaml += `    values:\n`;
+        (rule.values || []).forEach(v => { yaml += `      - "${v}"\n`; });
+        break;
+      case 'cardinality':
+        yaml += `    entity: ${rule.entity}\n`;
+        yaml += `    relation: ${rule.relation || rule.entity}\n`;
+        if (rule.at_most !== undefined) yaml += `    at_most: ${rule.at_most}\n`;
+        if (rule.at_least !== undefined) yaml += `    at_least: ${rule.at_least}\n`;
+        break;
+      case 'unique':
+        yaml += `    entity: ${rule.entity}\n`;
+        yaml += `    relation: ${rule.relation || rule.entity}\n`;
+        break;
+      case 'negation':
+        yaml += `    entity: ${rule.entity}\n`;
+        yaml += `    relation: ${rule.entity}\n`;
+        yaml += `    must_not_include:\n`;
+        (rule.values || []).forEach(v => { yaml += `      - "${v}"\n`; });
+        break;
+    }
+
+    yaml += `    severity: ${rule.severity}\n`;
+    const ruleMsg = rule['msg_' + currentLang] || rule.message;
+    if (ruleMsg) yaml += `    message: "${ruleMsg}"\n`;
+  });
+
+  return yaml;
+}
+
+function updateYamlPreview() {
+  const yamlStr = generateYaml();
+  const pre = document.getElementById('yaml-output');
+  pre.textContent = yamlStr;
+
+  // Show/hide empty guide vs usage guide
+  const usageGuide = document.getElementById('usage-guide');
+  const emptyGuide = document.getElementById('empty-yaml-guide');
+  if (usageGuide) usageGuide.style.display = rules.length > 0 ? '' : 'none';
+  if (emptyGuide) emptyGuide.style.display = rules.length === 0 ? '' : 'none';
+}
+
+function copyYaml() {
+  const yamlStr = generateYaml();
+  navigator.clipboard.writeText(yamlStr).then(() => {
+    showToast(t('toast_yaml_copied'), 'success');
+  });
+}
+
+function downloadYaml() {
+  const yamlStr = generateYaml();
+  const domain = document.getElementById('input-domain').value.trim() || 'my_domain';
+  const blob = new Blob([yamlStr], { type: 'text/yaml' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `${domain}.axiom.yml`;
+  a.click();
+  URL.revokeObjectURL(url);
+  showToast(t('toast_yaml_downloaded'), 'success');
+}
+
+// =====================================================================
+// RIGHT PANEL TABS
+// =====================================================================
+function switchRightTab(tab) {
+  currentRightTab = tab;
+  ['yaml', 'tester', 'import'].forEach(t => {
+    const panel = document.getElementById('rpanel-' + t);
+    const btn = document.getElementById('rtab-' + t);
+    if (t === tab) {
+      panel.classList.remove('hidden');
+      btn.classList.add('active');
+    } else {
+      panel.classList.add('hidden');
+      btn.classList.remove('active');
+    }
+  });
+}
+
+// =====================================================================
+// CLAIM TESTER
+// =====================================================================
+function updateTesterRuleOptions() {
+  const sel = document.getElementById('tester-rule-select');
+  if (!sel) return;
+  sel.innerHTML = '';
+  if (rules.length === 0) {
+    sel.innerHTML = `<option value="">${t('tester_no_rules_opt')}</option>`;
+    return;
+  }
+  rules.forEach((rule, i) => {
+    const desc = getRuleDescription(rule);
+    const opt = document.createElement('option');
+    opt.value = i;
+    opt.textContent = `${rule.type.toUpperCase()} — ${desc}`;
+    sel.appendChild(opt);
+  });
+  onTesterRuleSelect();
+}
+
+function onTesterRuleSelect() {
+  const sel = document.getElementById('tester-rule-select');
+  const idx = parseInt(sel.value);
+  const hint = document.getElementById('tester-hint');
+  const hintText = document.getElementById('tester-hint-text');
+  const valueInput = document.getElementById('claim-value');
+  const subjectInput = document.getElementById('claim-subject');
+  const relationInput = document.getElementById('claim-relation');
+
+  if (isNaN(idx) || !rules[idx]) {
+    hint.classList.add('hidden');
+    return;
+  }
+
+  const rule = rules[idx];
+  const entity = rule.entity || rule.left || '';
+  subjectInput.value = entity;
+  relationInput.value = rule.relation || entity;
+
+  // Build hint and placeholder
+  let hintMsg = '';
+  let placeholder = '';
+  switch (rule.type) {
+    case 'range':
+      hintMsg = currentLang === 'th'
+        ? `กรอกค่า ${entity} เพื่อทดสอบ (ช่วง: ${rule.min ?? '?'} - ${rule.max ?? '?'})`
+        : `Enter a ${entity} value to test (range: ${rule.min ?? '?'} - ${rule.max ?? '?'})`;
+      placeholder = rule.max !== undefined ? String(Math.round(rule.max * 1.5)) : '999';
+      break;
+    case 'comparison':
+      hintMsg = currentLang === 'th'
+        ? `กรอกค่า ${rule.left} เพื่อเปรียบเทียบกับ ${rule.right}`
+        : `Enter ${rule.left} value to compare against ${rule.right}`;
+      placeholder = '500000';
+      break;
+    case 'exclusion':
+      hintMsg = currentLang === 'th'
+        ? `กรอกค่า ${entity} เพื่อตรวจสอบ (ค่าต้องห้าม: ${(rule.values||[]).join(', ')})`
+        : `Enter a ${entity} value to check (forbidden: ${(rule.values||[]).join(', ')})`;
+      placeholder = rule.values?.[0] || 'N/A';
+      break;
+    case 'cardinality':
+      subjectInput.value = entity;
+      relationInput.value = rule.relation || 'value';
+      hintMsg = currentLang === 'th'
+        ? `กรอกจำนวน ${rule.relation || entity} (${rule.at_most !== undefined ? 'สูงสุด ' + rule.at_most : ''}${rule.at_least !== undefined ? 'ต่ำสุด ' + rule.at_least : ''})`
+        : `Enter count of ${rule.relation || entity} (${rule.at_most !== undefined ? 'max ' + rule.at_most : ''}${rule.at_least !== undefined ? 'min ' + rule.at_least : ''})`;
+      placeholder = rule.at_most !== undefined ? String(rule.at_most + 2) : '10';
+      break;
+    case 'unique':
+      subjectInput.value = entity;
+      relationInput.value = rule.relation || 'value';
+      hintMsg = currentLang === 'th'
+        ? `กรอกค่า ${rule.relation || entity} เพื่อตรวจว่าไม่ซ้ำ`
+        : `Enter a ${rule.relation || entity} value to check uniqueness`;
+      placeholder = 'test_value';
+      break;
+    case 'negation':
+      hintMsg = currentLang === 'th'
+        ? `กรอกค่า ${entity} เพื่อตรวจสอบ (ค่าต้องห้าม: ${(rule.values||[]).join(', ')})`
+        : `Enter a ${entity} value to check (prohibited: ${(rule.values||[]).join(', ')})`;
+      placeholder = rule.values?.[0] || 'test';
+      break;
+  }
+
+  hint.classList.remove('hidden');
+  hintText.textContent = hintMsg;
+  valueInput.placeholder = placeholder;
+
+  // Sync manual (advanced) fields
+  const subjectManual = document.getElementById('claim-subject-manual');
+  const relationManual = document.getElementById('claim-relation-manual');
+  if (subjectManual) subjectManual.value = subjectInput.value;
+  if (relationManual) relationManual.value = relationInput.value;
+}
+
+function verifyClaimManual() {
+  const s = document.getElementById('claim-subject-manual').value.trim();
+  const r = document.getElementById('claim-relation-manual').value.trim();
+  const v = document.getElementById('claim-value-manual').value.trim();
+  if (!s || !r || !v) { showToast(t('toast_form_incomplete'), 'warning'); return; }
+  document.getElementById('claim-subject').value = s;
+  document.getElementById('claim-relation').value = r;
+  document.getElementById('claim-value').value = v;
+  verifyClaim();
+}
+
+function generateYamlForSubject(subject) {
+  // Generate YAML with only rules matching the subject entity
+  // This prevents cross-rule contamination in Z3
+  const domain = document.getElementById('input-domain').value.trim() || 'my_domain';
+  const matchingRules = rules.filter(r => {
+    const entity = r.entity || r.left || '';
+    return entity === subject;
+  });
+  if (matchingRules.length === 0) return generateYaml(); // fallback to all rules
+  // Temporarily swap rules, generate, swap back
+  const allRules = rules;
+  rules = matchingRules;
+  const yaml = generateYaml();
+  rules = allRules;
+  return yaml;
+}
+
+async function verifyClaim() {
+  const subject = document.getElementById('claim-subject').value.trim();
+  const relation = document.getElementById('claim-relation').value.trim();
+  const value = document.getElementById('claim-value').value.trim();
+
+  if (!subject || !relation || !value) {
+    showToast(t('toast_form_incomplete'), 'warning');
+    return;
+  }
+
+  const yamlStr = generateYamlForSubject(subject);
+  const resultDiv = document.getElementById('verify-result');
+  resultDiv.classList.remove('hidden');
+  resultDiv.innerHTML = `
+    <div class="bg-surface-alt border border-border rounded-xl p-4 text-center">
+      <div class="inline-block w-6 h-6 border-2 border-primary-container border-t-transparent rounded-full animate-spin mb-2"></div>
+      <p class="text-text-secondary text-sm">${t('verify_checking')}</p>
+    </div>`;
+
+  try {
+    const response = await fetch('/api/verify', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        yaml_rules: yamlStr,
+        subject: subject,
+        relation: relation,
+        value: value,
+      }),
+    });
+
+    const data = await response.json();
+
+    if (data.error) {
+      const isTimeout = data.z3_unknown || (data.reason && data.reason.toLowerCase().includes('unknown'));
+      if (isTimeout) {
+        resultDiv.innerHTML = `
+          <div class="bg-[#ffba4215] border border-[#ffba4233] rounded-xl p-4">
+            <div class="flex items-center gap-2 mb-2">
+              <span class="material-symbols-outlined text-[#ffba42]" style="font-size:22px;">warning</span>
+              <h4 class="font-headline font-semibold text-[#ffba42]">${t('verify_unknown_title')}</h4>
+            </div>
+            <p class="text-text-secondary text-sm mb-2">${t('verify_unknown_desc')}</p>
+            <p class="text-xs text-text-muted"><strong>${t('verify_reason')}:</strong> ${escapeHtml(data.reason)}</p>
+          </div>`;
+      } else {
+        resultDiv.innerHTML = `
+          <div class="logic-rail-error bg-error-container/10 border border-error/20 rounded-xl p-4">
+            <h4 class="font-headline font-semibold text-error text-sm mb-1">${t('verify_error_title')}</h4>
+            <p class="text-text-secondary text-sm">${escapeHtml(data.reason || 'Unknown error')}</p>
+          </div>`;
+      }
+      return;
+    }
+
+    if (data.is_hallucinating) {
+      resultDiv.innerHTML = `
+        <div class="logic-rail-error bg-error-container/10 border border-error/20 rounded-xl p-4">
+          <div class="flex items-center gap-2 mb-2">
+            <span class="material-symbols-outlined text-error" style="font-size:22px;">gpp_bad</span>
+            <h4 class="font-headline font-semibold text-error">${t('verify_unsat_title')}</h4>
+          </div>
+          <p class="text-text-secondary text-sm mb-2">${t('verify_unsat_desc')}</p>
+          <p class="text-xs text-text-muted"><strong>${t('verify_reason')}:</strong> ${escapeHtml(data.reason)}</p>
+          ${data.violated_rules && data.violated_rules.length > 0 ? `
+            <div class="mt-2 border-t border-error/10 pt-2">
+              <p class="text-xs font-semibold text-error mb-1">${t('verify_violated')}:</p>
+              ${data.violated_rules.map(vr => `<p class="text-xs text-text-muted ml-2">- ${escapeHtml(JSON.stringify(vr))}</p>`).join('')}
+            </div>
+          ` : ''}
+        </div>`;
+      showToast(t('toast_verify_unsat'), 'error');
+    } else {
+      resultDiv.innerHTML = `
+        <div class="logic-rail-success bg-success-dim border border-success/20 rounded-xl p-4">
+          <div class="flex items-center gap-2 mb-2">
+            <span class="material-symbols-outlined text-success" style="font-size:22px;">verified</span>
+            <h4 class="font-headline font-semibold text-success">${t('verify_sat_title')}</h4>
+          </div>
+          <p class="text-text-secondary text-sm">${t('verify_sat_desc')}</p>
+          <p class="text-xs text-text-muted mt-1"><strong>${t('verify_reason')}:</strong> ${escapeHtml(data.reason)}</p>
+        </div>`;
+      showToast(t('toast_verify_sat'), 'success');
+    }
+  } catch (err) {
+    resultDiv.innerHTML = `
+      <div class="logic-rail-error bg-error-container/10 border border-error/20 rounded-xl p-4">
+        <h4 class="font-headline font-semibold text-error text-sm mb-1">${t('verify_error_title')}</h4>
+        <p class="text-text-secondary text-sm">${escapeHtml(err.message)}</p>
+      </div>`;
+  }
+}
+
+// =====================================================================
+// IMPORT
+// =====================================================================
+async function importFromText() {
+  const yamlStr = document.getElementById('import-yaml').value.trim();
+  if (!yamlStr) {
+    showToast(t('toast_form_incomplete'), 'warning');
+    return;
+  }
+  await doImport(yamlStr);
+}
+
+async function importFromFile(event) {
+  const file = event.target.files[0];
+  if (!file) return;
+  const text = await file.text();
+  document.getElementById('import-yaml').value = text;
+  await doImport(text);
+  event.target.value = '';
+}
+
+async function doImport(yamlStr) {
+  const resultDiv = document.getElementById('import-result');
+  resultDiv.classList.remove('hidden');
+
+  try {
+    const response = await fetch('/api/validate', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ yaml_str: yamlStr }),
+    });
+
+    const data = await response.json();
+
+    if (data.valid) {
+      rules = data.rules || [];
+      if (data.domain) {
+        document.getElementById('input-domain').value = data.domain;
+      }
+      renderRulesList();
+      updateYamlPreview();
+      const msg = t('toast_import_success').replace('{count}', rules.length).replace('{domain}', data.domain);
+      showToast(msg, 'success');
+      resultDiv.innerHTML = `
+        <div class="logic-rail-success bg-success-dim border border-success/20 rounded-xl p-3">
+          <p class="text-success text-sm font-medium">${escapeHtml(msg)}</p>
+        </div>`;
+      // Switch to YAML tab
+      switchRightTab('yaml');
+    } else {
+      const errMsg = t('toast_import_error').replace('{error}', data.error || 'Unknown');
+      showToast(errMsg, 'error');
+      resultDiv.innerHTML = `
+        <div class="logic-rail-error bg-error-container/10 border border-error/20 rounded-xl p-3">
+          <p class="text-error text-sm">${escapeHtml(errMsg)}</p>
+        </div>`;
+    }
+  } catch (err) {
+    const errMsg = t('toast_import_error').replace('{error}', err.message);
+    showToast(errMsg, 'error');
+    resultDiv.innerHTML = `
+      <div class="logic-rail-error bg-error-container/10 border border-error/20 rounded-xl p-3">
+        <p class="text-error text-sm">${escapeHtml(errMsg)}</p>
+      </div>`;
+  }
+}
+
+// =====================================================================
+// GENERATE RULES MODAL
+// =====================================================================
+let generatedSuggestions = [];
+
+function openGenerateModal() {
+  document.getElementById('modal-generate').classList.remove('hidden');
+  document.getElementById('gen-text').value = '';
+  document.getElementById('gen-domain').value = document.getElementById('input-domain').value || '';
+  document.getElementById('gen-suggestions').classList.add('hidden');
+  document.getElementById('gen-loading').classList.add('hidden');
+  document.getElementById('gen-error').classList.add('hidden');
+  generatedSuggestions = [];
+}
+
+const INDUSTRY_PRESETS = {
+  medical: {
+    domain: 'medical_records',
+    rules: [
+      { type: 'range', entity: 'dosage_mg', min: 0, max: 500, severity: 'error', msg: { en: 'Dosage must be between 0 and 500 mg', th: 'ปริมาณยาต้องอยู่ระหว่าง 0 ถึง 500 มก.' } },
+      { type: 'range', entity: 'heart_rate', min: 40, max: 200, severity: 'warning', msg: { en: 'Heart rate outside normal range (40-200 bpm)', th: 'อัตราการเต้นหัวใจนอกช่วงปกติ (40-200 ครั้ง/นาที)' } },
+      { type: 'exclusion', entity: 'blood_type', values: ['unknown', 'N/A', 'TBD'], severity: 'error', msg: { en: 'Blood type must not be a placeholder', th: 'กรุ๊ปเลือดต้องไม่เป็นค่าชั่วคราว' } },
+      { type: 'cardinality', entity: 'patient', relation: 'primary_diagnosis', at_most: 3, severity: 'warning', msg: { en: 'A patient should have at most 3 primary diagnoses', th: 'ผู้ป่วย 1 คนควรมีการวินิจฉัยหลักไม่เกิน 3 รายการ' } },
+      { type: 'unique', entity: 'patient', relation: 'patient_id', severity: 'error', msg: { en: 'Patient ID must be unique', th: 'รหัสผู้ป่วยต้องไม่ซ้ำกัน' } },
+      { type: 'negation', entity: 'allergic_patient', values: ['Penicillin', 'Aspirin'], severity: 'error', msg: { en: 'Contraindicated medications for allergic patients', th: 'ยาต้องห้ามสำหรับผู้ป่วยแพ้ยา' } },
+    ]
+  },
+  banking: {
+    domain: 'financial_report',
+    rules: [
+      { type: 'range', entity: 'revenue', min: 0, max: 10000000, severity: 'error', msg: { en: 'Revenue must be between 0 and 10,000,000', th: 'รายได้ต้องอยู่ระหว่าง 0 ถึง 10,000,000' } },
+      { type: 'range', entity: 'interest_rate', min: 0, max: 30, severity: 'error', msg: { en: 'Interest rate must be between 0% and 30%', th: 'อัตราดอกเบี้ยต้องอยู่ระหว่าง 0% ถึง 30%' } },
+      { type: 'comparison', left: 'expenses', right: 'revenue', operator: '<=', severity: 'error', msg: { en: 'Expenses must not exceed revenue', th: 'ค่าใช้จ่ายต้องไม่เกินรายได้' } },
+      { type: 'comparison', left: 'loan_amount', right: 'annual_income', operator: '<=', multiplier: 5, severity: 'error', msg: { en: 'Loan must not exceed 5x annual income', th: 'วงเงินกู้ต้องไม่เกิน 5 เท่าของรายได้ต่อปี' } },
+      { type: 'exclusion', entity: 'account_status', values: ['N/A', 'unknown', 'pending_delete'], severity: 'error', msg: { en: 'Account status must not be placeholder', th: 'สถานะบัญชีต้องไม่เป็นค่าชั่วคราว' } },
+      { type: 'unique', entity: 'transaction', relation: 'transaction_id', severity: 'error', msg: { en: 'Transaction ID must be unique', th: 'รหัสธุรกรรมต้องไม่ซ้ำกัน' } },
+    ]
+  },
+  hr: {
+    domain: 'hr_system',
+    rules: [
+      { type: 'range', entity: 'salary', min: 15000, max: 500000, severity: 'error', msg: { en: 'Salary must be between 15,000 and 500,000', th: 'เงินเดือนต้องอยู่ระหว่าง 15,000 ถึง 500,000' } },
+      { type: 'range', entity: 'age', min: 18, max: 65, severity: 'warning', msg: { en: 'Employee age should be between 18 and 65', th: 'อายุพนักงานควรอยู่ระหว่าง 18 ถึง 65 ปี' } },
+      { type: 'unique', entity: 'employee', relation: 'employee_id', severity: 'error', msg: { en: 'Employee ID must be unique', th: 'รหัสพนักงานต้องไม่ซ้ำกัน' } },
+      { type: 'exclusion', entity: 'department', values: ['TBD', 'N/A', 'none', 'unassigned'], severity: 'error', msg: { en: 'Department must be assigned', th: 'ต้องระบุแผนก' } },
+      { type: 'cardinality', entity: 'employee', relation: 'emergency_contact', at_least: 1, severity: 'warning', msg: { en: 'Every employee should have at least 1 emergency contact', th: 'พนักงานทุกคนควรมีผู้ติดต่อฉุกเฉินอย่างน้อย 1 คน' } },
+      { type: 'negation', entity: 'terminated_employee', values: ['access_granted', 'active'], severity: 'error', msg: { en: 'Terminated employees must not have active access', th: 'พนักงานที่ลาออกแล้วต้องไม่มีสิทธิ์เข้าถึงระบบ' } },
+    ]
+  },
+  ecommerce: {
+    domain: 'ecommerce_platform',
+    rules: [
+      { type: 'range', entity: 'price', min: 0, max: 1000000, severity: 'error', msg: { en: 'Price must be between 0 and 1,000,000', th: 'ราคาต้องอยู่ระหว่าง 0 ถึง 1,000,000' } },
+      { type: 'range', entity: 'rating', min: 1, max: 5, severity: 'error', msg: { en: 'Rating must be between 1 and 5', th: 'คะแนนรีวิวต้องอยู่ระหว่าง 1 ถึง 5' } },
+      { type: 'range', entity: 'stock_quantity', min: 0, max: 99999, severity: 'warning', msg: { en: 'Stock quantity out of expected range', th: 'จำนวนสต็อกอยู่นอกช่วงที่คาดไว้' } },
+      { type: 'comparison', left: 'discount_price', right: 'original_price', operator: '<=', severity: 'error', msg: { en: 'Discount price must not exceed original price', th: 'ราคาลดต้องไม่เกินราคาเต็ม' } },
+      { type: 'unique', entity: 'product', relation: 'sku', severity: 'error', msg: { en: 'Product SKU must be unique', th: 'รหัส SKU สินค้าต้องไม่ซ้ำกัน' } },
+      { type: 'exclusion', entity: 'order_status', values: ['error', 'corrupted', 'null'], severity: 'error', msg: { en: 'Order status must not be invalid', th: 'สถานะคำสั่งซื้อต้องไม่เป็นค่าที่ไม่ถูกต้อง' } },
+    ]
+  },
+  insurance: {
+    domain: 'insurance_policy',
+    rules: [
+      { type: 'range', entity: 'claim_amount', min: 0, max: 5000000, severity: 'error', msg: { en: 'Claim amount must be between 0 and 5,000,000', th: 'จำนวนเงินเคลมต้องอยู่ระหว่าง 0 ถึง 5,000,000' } },
+      { type: 'range', entity: 'premium', min: 100, max: 100000, severity: 'error', msg: { en: 'Premium must be between 100 and 100,000', th: 'เบี้ยประกันต้องอยู่ระหว่าง 100 ถึง 100,000' } },
+      { type: 'comparison', left: 'claim_amount', right: 'coverage_limit', operator: '<=', severity: 'error', msg: { en: 'Claim must not exceed coverage limit', th: 'เงินเคลมต้องไม่เกินวงเงินคุ้มครอง' } },
+      { type: 'cardinality', entity: 'policy', relation: 'beneficiary', at_least: 1, at_most: 10, severity: 'error', msg: { en: 'Policy must have 1-10 beneficiaries', th: 'กรมธรรม์ต้องมีผู้รับผลประโยชน์ 1-10 คน' } },
+      { type: 'unique', entity: 'policy', relation: 'policy_number', severity: 'error', msg: { en: 'Policy number must be unique', th: 'เลขกรมธรรม์ต้องไม่ซ้ำกัน' } },
+      { type: 'exclusion', entity: 'policy_status', values: ['void', 'error', 'N/A'], severity: 'error', msg: { en: 'Policy status must not be invalid', th: 'สถานะกรมธรรม์ต้องไม่เป็นค่าที่ไม่ถูกต้อง' } },
+    ]
+  },
+  education: {
+    domain: 'education_system',
+    rules: [
+      { type: 'range', entity: 'grade', min: 0, max: 4, severity: 'error', msg: { en: 'Grade must be between 0.0 and 4.0', th: 'เกรดต้องอยู่ระหว่าง 0.0 ถึง 4.0' } },
+      { type: 'range', entity: 'credit_hours', min: 1, max: 24, severity: 'warning', msg: { en: 'Credit hours should be between 1 and 24 per semester', th: 'หน่วยกิตควรอยู่ระหว่าง 1 ถึง 24 ต่อเทอม' } },
+      { type: 'unique', entity: 'student', relation: 'student_id', severity: 'error', msg: { en: 'Student ID must be unique', th: 'รหัสนักศึกษาต้องไม่ซ้ำกัน' } },
+      { type: 'cardinality', entity: 'student', relation: 'enrolled_course', at_most: 8, severity: 'warning', msg: { en: 'A student should enroll in at most 8 courses', th: 'นักศึกษาควรลงทะเบียนเรียนได้สูงสุด 8 วิชา' } },
+      { type: 'exclusion', entity: 'enrollment_status', values: ['error', 'null', 'N/A'], severity: 'error', msg: { en: 'Enrollment status must be valid', th: 'สถานะการลงทะเบียนต้องถูกต้อง' } },
+      { type: 'comparison', left: 'attendance_rate', right: 'minimum_attendance', operator: '>=', severity: 'warning', msg: { en: 'Attendance rate must meet minimum requirement', th: 'อัตราการเข้าเรียนต้องไม่ต่ำกว่าเกณฑ์ขั้นต่ำ' } },
+    ]
+  },
+};
+
+function applyIndustryPreset(industry) {
+  const preset = INDUSTRY_PRESETS[industry];
+  if (!preset) return;
+
+  // Clear existing rules before applying new preset
+  rules = [];
+
+  // Set domain
+  document.getElementById('input-domain').value = preset.domain;
+  const domainVis = document.getElementById('input-domain-visible');
+  if (domainVis) domainVis.value = preset.domain;
+
+  // Add all rules with both language messages stored
+  preset.rules.forEach(r => {
+    const rule = { ...r };
+    if (rule.msg) {
+      rule.message = rule.msg[currentLang] || rule.msg.en;
+      rule.msg_en = rule.msg.en;
+      rule.msg_th = rule.msg.th;
+      delete rule.msg;
+    }
+    if (!rule.message) rule.message = autoGenerateMessage(rule);
+    rules.push(rule);
+  });
+
+  renderRulesList();
+  updateYamlPreview();
+
+  // Close modal
+  document.getElementById('modal-generate').classList.add('hidden');
+
+  showToast(`${preset.rules.length} ${t('preset_' + industry)} ${currentLang === 'th' ? 'กฎถูกสร้างแล้ว!' : 'rules generated!'}`, 'success');
+
+  // Suggest next step with last rule
+  if (preset.rules.length > 0) {
+    suggestNextStep(preset.rules[preset.rules.length - 1]);
+  }
+}
+
+function closeGenerateModal(event) {
+  if (event && event.target !== event.currentTarget) return;
+  document.getElementById('modal-generate').classList.add('hidden');
+}
+
+async function generateRules() {
+  const text = document.getElementById('gen-text').value.trim();
+  const domain = document.getElementById('gen-domain').value.trim() || 'generated';
+
+  if (!text) {
+    showToast(t('toast_generate_no_text'), 'warning');
+    return;
+  }
+
+  document.getElementById('gen-suggestions').classList.add('hidden');
+  document.getElementById('gen-loading').classList.remove('hidden');
+  document.getElementById('gen-error').classList.add('hidden');
+  document.getElementById('btn-generate-analyze').disabled = true;
+
+  try {
+    const response = await fetch('/api/generate', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ text, domain }),
+    });
+
+    const data = await response.json();
+    document.getElementById('gen-loading').classList.add('hidden');
+    document.getElementById('btn-generate-analyze').disabled = false;
+
+    if (data.error) {
+      document.getElementById('gen-error').classList.remove('hidden');
+      document.getElementById('gen-error-msg').textContent = data.error;
+      return;
+    }
+
+    if (data.suggestions && data.suggestions.length > 0) {
+      generatedSuggestions = data.suggestions.map(s => ({ ...s, status: 'pending' }));
+      renderSuggestions();
+      document.getElementById('gen-suggestions').classList.remove('hidden');
+    } else {
+      document.getElementById('gen-error').classList.remove('hidden');
+      document.getElementById('gen-error-msg').textContent = 'No rules could be generated from the provided text.';
+    }
+  } catch (err) {
+    document.getElementById('gen-loading').classList.add('hidden');
+    document.getElementById('btn-generate-analyze').disabled = false;
+    document.getElementById('gen-error').classList.remove('hidden');
+    document.getElementById('gen-error-msg').textContent = err.message;
+  }
+}
+
+function renderSuggestions() {
+  const container = document.getElementById('gen-suggestions-list');
+  let html = '';
+
+  generatedSuggestions.forEach((sug, i) => {
+    if (sug.status === 'rejected') return;
+
+    const railClass = sug.status === 'approved' ? 'logic-rail-success' : 'logic-rail';
+    const desc = getRuleDescription(sug);
+
+    html += `
+      <div class="${railClass} bg-surface-alt rounded-lg p-3 fade-in">
+        <div class="flex items-start justify-between gap-2">
+          <div class="flex-1 min-w-0">
+            <div class="flex items-center gap-2 mb-1">
+              <span class="text-xs font-semibold text-primary font-headline uppercase">${escapeHtml(sug.type)}</span>
+              ${getSeverityBadge(sug.severity || 'warning')}
+              ${sug.status === 'approved' ? '<span class="text-[10px] px-1.5 py-0.5 rounded bg-success/20 text-success font-medium">APPROVED</span>' : ''}
+            </div>
+            <p class="text-sm text-text-primary">${escapeHtml(desc)}</p>
+            ${sug.message ? `<p class="text-xs text-text-muted mt-0.5">${escapeHtml(sug.message)}</p>` : ''}
+          </div>
+          ${sug.status === 'pending' ? `
+            <div class="flex items-center gap-1 flex-shrink-0">
+              <button onclick="approveSuggestion(${i})" class="px-2.5 py-1 rounded text-xs font-medium bg-success/20 text-success hover:bg-success/30 transition-colors">${t('btn_approve')}</button>
+              <button onclick="editSuggestion(${i})" class="px-2.5 py-1 rounded text-xs font-medium bg-primary-container/20 text-primary hover:bg-primary-container/30 transition-colors">${t('btn_edit')}</button>
+              <button onclick="rejectSuggestion(${i})" class="px-2.5 py-1 rounded text-xs font-medium bg-error-container/20 text-error hover:bg-error-container/40 transition-colors">${t('btn_reject')}</button>
+            </div>
+          ` : ''}
+        </div>
+      </div>`;
+  });
+
+  if (!html) {
+    html = '<p class="text-text-muted text-sm text-center py-4">All suggestions have been processed.</p>';
+  }
+
+  container.innerHTML = html;
+}
+
+function approveSuggestion(index) {
+  const sug = generatedSuggestions[index];
+  sug.status = 'approved';
+  const cleanRule = { ...sug };
+  delete cleanRule.status;
+  if (!cleanRule.severity) cleanRule.severity = 'warning';
+  rules.push(cleanRule);
+  renderSuggestions();
+  renderRulesList();
+  updateYamlPreview();
+  showToast(t('toast_approved'), 'success');
+}
+
+function editSuggestion(index) {
+  const sug = generatedSuggestions[index];
+  sug.status = 'rejected';
+  renderSuggestions();
+
+  // Populate the form with the suggestion data
+  closeGenerateModal();
+  document.getElementById('select-rule-type').value = sug.type || 'range';
+  onRuleTypeChange();
+
+  setTimeout(() => {
+    selectSeverity(sug.severity || 'warning');
+    document.getElementById('input-message').value = sug.message || '';
+
+    switch (sug.type) {
+      case 'range':
+        if (document.getElementById('field-entity')) document.getElementById('field-entity').value = sug.entity || '';
+        if (document.getElementById('field-min')) document.getElementById('field-min').value = sug.min !== undefined ? sug.min : '';
+        if (document.getElementById('field-max')) document.getElementById('field-max').value = sug.max !== undefined ? sug.max : '';
+        break;
+      case 'comparison':
+        if (document.getElementById('field-left')) document.getElementById('field-left').value = sug.left || '';
+        if (document.getElementById('field-right')) document.getElementById('field-right').value = sug.right || '';
+        if (document.getElementById('field-operator')) document.getElementById('field-operator').value = sug.operator || '<=';
+        if (document.getElementById('field-multiplier')) document.getElementById('field-multiplier').value = sug.multiplier !== undefined ? sug.multiplier : '';
+        break;
+      case 'exclusion':
+        if (document.getElementById('field-entity')) document.getElementById('field-entity').value = sug.entity || '';
+        if (document.getElementById('field-values')) document.getElementById('field-values').value = (sug.values || []).join(', ');
+        break;
+      case 'cardinality':
+        if (document.getElementById('field-entity')) document.getElementById('field-entity').value = sug.entity || '';
+        if (document.getElementById('field-relation')) document.getElementById('field-relation').value = sug.relation || '';
+        if (document.getElementById('field-at-most')) document.getElementById('field-at-most').value = sug.at_most !== undefined ? sug.at_most : '';
+        if (document.getElementById('field-at-least')) document.getElementById('field-at-least').value = sug.at_least !== undefined ? sug.at_least : '';
+        break;
+      case 'unique':
+        if (document.getElementById('field-entity')) document.getElementById('field-entity').value = sug.entity || '';
+        if (document.getElementById('field-relation')) document.getElementById('field-relation').value = sug.relation || '';
+        break;
+      case 'negation':
+        if (document.getElementById('field-entity')) document.getElementById('field-entity').value = sug.entity || '';
+        if (document.getElementById('field-values')) document.getElementById('field-values').value = (sug.values || []).join(', ');
+        break;
+    }
+  }, 50);
+}
+
+function rejectSuggestion(index) {
+  generatedSuggestions[index].status = 'rejected';
+  renderSuggestions();
+  showToast(t('toast_rejected'), 'info');
+}
+
+function approveAllSuggestions() {
+  let count = 0;
+  generatedSuggestions.forEach(sug => {
+    if (sug.status === 'pending') {
+      sug.status = 'approved';
+      const cleanRule = { ...sug };
+      delete cleanRule.status;
+      if (!cleanRule.severity) cleanRule.severity = 'warning';
+      rules.push(cleanRule);
+      count++;
+    }
+  });
+  if (count > 0) {
+    renderSuggestions();
+    renderRulesList();
+    updateYamlPreview();
+    showToast(t('toast_all_approved'), 'success');
+  }
+}
+
+// =====================================================================
+// TOAST NOTIFICATIONS
+// =====================================================================
+function showToast(message, type) {
+  const container = document.getElementById('toast-container');
+  const colors = {
+    success: 'border-success bg-success-dim text-success',
+    error: 'border-error bg-error-container/30 text-error',
+    warning: 'border-tertiary bg-tertiary/10 text-tertiary',
+    info: 'border-primary-container bg-primary-container/10 text-primary',
+  };
+  const icons = {
+    success: 'check_circle',
+    error: 'error',
+    warning: 'warning',
+    info: 'info',
+  };
+
+  const toast = document.createElement('div');
+  toast.className = `flex items-center gap-2 px-4 py-2.5 rounded-xl border text-sm font-medium slide-up ${colors[type] || colors.info}`;
+  toast.innerHTML = `
+    <span class="material-symbols-outlined" style="font-size:18px;">${icons[type] || 'info'}</span>
+    <span>${escapeHtml(message)}</span>`;
+
+  container.appendChild(toast);
+
+  setTimeout(() => {
+    toast.style.opacity = '0';
+    toast.style.transform = 'translateY(8px)';
+    toast.style.transition = 'all 0.3s ease-out';
+    setTimeout(() => toast.remove(), 300);
+  }, 3500);
+}
+
+// =====================================================================
+// UTILITY
+// =====================================================================
+function escapeHtml(str) {
+  if (!str) return '';
+  const s = String(str);
+  const div = document.createElement('div');
+  div.appendChild(document.createTextNode(s));
+  return div.innerHTML;
+}
+
+// =====================================================================
+// DOMAIN INPUT LISTENER (updates YAML on change)
+// =====================================================================
+document.getElementById('input-domain').addEventListener('input', () => {
+  updateYamlPreview();
+});
+
+// =====================================================================
+// KEYBOARD SHORTCUTS
+// =====================================================================
+document.addEventListener('keydown', (e) => {
+  // Escape closes modal
+  if (e.key === 'Escape') {
+    const modal = document.getElementById('modal-generate');
+    if (!modal.classList.contains('hidden')) {
+      modal.classList.add('hidden');
+    }
+  }
+  // Enter in form fields → add rule
+  if (e.key === 'Enter' && !e.shiftKey) {
+    const active = document.activeElement;
+    if (active && (active.tagName === 'INPUT' || active.tagName === 'SELECT') && active.closest('#dynamic-fields, #severity-group, [id^="input-"], [id^="field-"]')) {
+      e.preventDefault();
+      addRule();
+    }
+  }
+});
+
+// =====================================================================
+// INIT
+// =====================================================================
+(function init() {
+  const onboarded = localStorage.getItem('axiom_studio_onboarded');
+  if (onboarded === 'true') {
+    showScreen('builder');
+  } else {
+    showScreen('onboarding');
+  }
+  onRuleTypeChange();
+  updateYamlPreview();
+  applyTranslations();
+
+  // Check API health on load
+  fetch('/api/health')
+    .then(r => r.json())
+    .then(data => {
+      if (data.status === 'ok') {
+        console.log(`Axiom Studio connected: v${data.version}, engine: ${data.engine}`);
+      }
+    })
+    .catch(() => {
+      console.warn('Axiom Studio API not reachable. Running in standalone mode.');
+    });
+})();
+</script>
+</body>
+</html>
